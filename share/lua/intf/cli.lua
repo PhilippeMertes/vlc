@@ -549,6 +549,21 @@ function hotkey(name, client, value)
     end
 end
 
+function show_pvds(name, client, value)
+    pvds = vlc.net.show_pvds()
+    if pvds then
+        client:append(pvds)
+    end
+end
+
+function pvd(name, client, value)
+    if value then
+        client:append(vlc.net.set_pvd(value))
+    else
+        client:append(vlc.net.get_pvd())
+    end
+end
+
 --[[ Declare commands, register their callback functions and provide
      help strings here.
      Syntax is:
@@ -612,6 +627,9 @@ commands_ordered = {
     { "snapshot"; { func = common.snapshot; help = "take video snapshot" } };
     { "strack"; { func = skip(listvalue("input","spu-es")); args = "[X]"; help = "set/get subtitle track" } };
     { "hotkey"; { func = hotkey; args = "[hotkey name]"; help = "simulate hotkey press"; adv = true; aliases = { "key" } } };
+    { "" };
+    { "show_pvds"; { func = show_pvds; help = "print kernel PvDs" } };
+    { "pvd"; { func = pvd; args = "[name]"; help = "set/get the socket PvD" } };
     { "" };
     { "vlm"; { func = load_vlm; help = "load the VLM" } };
     { "set"; { func = set_env; args = "[var [value]]"; help = "set/get env var"; adv = true } };

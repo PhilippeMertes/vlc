@@ -36,6 +36,9 @@
 #include <poll.h>       /* poll structures and defines */
 #endif
 #include <sys/stat.h>
+#ifndef _WIN32
+#include <libpvd.h>
+#endif
 
 #include <vlc_common.h>
 #include <vlc_network.h>
@@ -348,6 +351,146 @@ static int vlclua_net_poll( lua_State *L )
 }
 
 /*****************************************************************************
+ * Net pvd
+ *****************************************************************************/
+#ifndef _WIN32
+static int vlclua_net_pvd_show( lua_State *L )
+{
+    t_pvd_connection* conn = pvd_connect(10101);
+
+    t_pvd_list* pvd_list = malloc(sizeof(t_pvd_list));
+
+    // get list of PvD names
+    if(pvd_get_pvd_list_sync(conn, pvd_list)) {
+        lua_pushstring(L, "Error on getting PvD list from daemon");
+        free(pvd_list);
+        return 0;
+    }
+    // print Pvd names
+    char ret_string[4352*(pvd_list->npvd)];
+    int pos = 0;
+    pos += sprintf(&ret_string[pos], "PVD NAMES:\n");
+    for(int i = 0; i < pvd_list->npvd; ++i)
+        pos += sprintf(&ret_string[pos], "%s\n", pvd_list->pvdnames[i]);
+
+    // get PvD attributes
+    char** attributes = malloc(4096);
+    pos += sprintf(&ret_string[pos], "\n\nPVD ATTRIBUTES:\n");
+    for(int i = 0; i < pvd_list->npvd; ++i) {
+        pos += sprintf(&ret_string[pos], "%s:\n", pvd_list->pvdnames[i]);
+        if(pvd_get_attributes_sync(conn, pvd_list->pvdnames[i], attributes))
+            pos += sprintf(&ret_string[pos], "unable to get\n");
+        else {
+            pos += sprintf(&ret_string[pos], "%s\n", attributes[0]);
+        }
+        attributes = realloc(attributes, 4096);
+    }
+
+    free(attributes);
+    free(pvd_list);
+    lua_pushstring(L, ret_string);
+    return 1;
+
+    /*
+    int len = 0;
+    // waiting until message received
+    while(len == 0)
+        ioctl(sockfd, FIONREAD, &len);
+    char message[len];
+    if(read(sockfd, &message, len) < 0) {
+        lua_pushstring(L, "Error on reading message");
+        return 0;
+    }
+
+    int pos = 0;
+    // parse message
+    t_pvd_list* pvd_list = malloc(sizeof(t_pvd_list));
+    if(pvd_parse_pvd_list(message, pvd_list)) {
+        lua_pushstring(L, "Unable to parse the message received from pvdd");
+        return 0;
+    }
+    char ret_string[4096*(pvd_list->npvd-1)];
+    for(int i = 1; i < pvd_list->npvd; ++i)
+        pos += sprintf(&ret_string[pos], "%s\n", pvd_list->pvdnames[i]);
+
+    if(pvd_get_attributes(connection, ""*""))
+        pos += sprintf(&ret_string[pos], "unable to get PvD attributes\n");
+    else {
+        len = 0;
+        // waiting until message received
+        while(len == 0)
+            ioctl(sockfd, FIONREAD, &len);
+        char attr_msg[len];
+        if(read(sockfd, &attr_msg, len) < 0) {
+            lua_pushstring(L, "Error on reading attributes message from socket");
+            return 0;
+        }
+
+        pos += sprintf(&ret_string[pos], "%s\n", attr_msg);
+    }
+
+    lua_pushstring(L, ret_string);
+    return 1;
+
+    /*
+     * Method retrieving PvDs from kernel
+    struct pvd_list* pvl = malloc(sizeof(struct pvd_list));
+
+    int ret = kernel_get_pvdlist(pvl);
+    char retString[256];
+    if (ret == 0) {
+        int pos = 0;
+        for (int i = 0; i < pvl->npvd; ++i) {
+            pos += sprintf(&retString[pos], "%s\n", pvl->pvds[i]);
+        }
+    }
+    else {
+        sprintf(retString, "Unable to get PvDs from kernel.");
+    }
+
+    lua_pushstring(L, retString);
+
+    free(pvl);
+    return (ret == 0) ? 1 : 0;
+    */
+}
+
+static int vlclua_net_pvd_set( lua_State *L )
+{
+
+    char *pvdname = luaL_checkstring(L, 1);
+    lua_pushstring(L, pvdname);
+
+    char proc_pvd[256];
+    proc_bind_to_pvd(pvdname);
+    proc_get_bound_pvd(proc_pvd);
+
+    if(strcmp(proc_pvd, pvdname) == 0) {
+        lua_pushstring(L, "Process is successfully bound to the PvD");
+    }
+    else {
+        if(proc_bind_to_nopvd() < 0) {
+            lua_pushstring(L, "Process failed binding to PvD and as well failed unbinding.");
+            return 0;
+        }
+        else {
+            lua_pushstring(L, "Process failed binding to the PvD, thus remains unbound to any PvD.");
+        }
+    }
+    return 1;
+}
+
+static int vlclua_net_pvd_get( lua_State *L )
+{
+    char pvdname[256];
+    proc_get_bound_pvd(pvdname);
+    lua_pushstring(L, pvdname);
+    return 1;
+}
+
+#endif
+
+/*****************************************************************************
  *
  *****************************************************************************/
 /*
@@ -473,6 +616,9 @@ static const luaL_Reg vlclua_net_intf_reg[] = {
 #ifndef _WIN32
     { "read", vlclua_fd_read },
     { "write", vlclua_fd_write },
+    { "get_pvd", vlclua_net_pvd_get},
+    { "set_pvd", vlclua_net_pvd_set},
+    { "show_pvds", vlclua_net_pvd_show },
 #endif
     /* The following functions do not depend on intf_thread_t and do not really
      * belong in net.* but are left here for backward compatibility: */
