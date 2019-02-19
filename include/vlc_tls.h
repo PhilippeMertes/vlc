@@ -141,6 +141,7 @@ typedef struct vlc_tls_client
     struct vlc_common_members obj;
     const struct vlc_tls_client_operations *ops;
     void *sys;
+    vlc_dictionary_t *pvds;
 } vlc_tls_client_t;
 
 struct vlc_tls_client_operations

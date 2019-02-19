@@ -32,12 +32,14 @@
 #ifdef HAVE_SYS_UIO_H
 # include <sys/uio.h>
 #endif
+#include <libpvd.h>
 
 #include <vlc_common.h>
 #include <vlc_plugin.h>
 #include <vlc_tls.h>
 #include <vlc_block.h>
 #include <vlc_dialog.h>
+#include <vlc_fs.h>
 
 #include <gnutls/gnutls.h>
 #include <gnutls/x509.h>
@@ -322,6 +324,9 @@ static int gnutls_Handshake(vlc_tls_t *tls, char **restrict alp)
     vlc_tls_gnutls_t *priv = (vlc_tls_gnutls_t *)tls;
     vlc_object_t *obj = priv->obj;
     gnutls_session_t session = priv->session;
+    char proc_pvd[256];
+    proc_get_bound_pvd(proc_pvd);
+    printf("Bound PvD at TLS handshake: %s\n", proc_pvd);
     int val = gnutls_handshake(session);
 
     if (gnutls_error_is_fatal(val))
@@ -535,11 +540,56 @@ error:
     return -1;
 }
 
+
+int gnutls_pvd_parse_config(vlc_tls_client_t *crd, vlc_dictionary_t *pvds,
+                            const char *config_file) {
+    vlc_dictionary_init(pvds, 0);
+    if (config_file) {
+        FILE *pvd_file = vlc_fopen(config_file, "r");
+        if (!pvd_file) {
+            msg_Err(crd, "Unable to open PvD config file");
+            return VLC_EGENERIC;
+        }
+
+        char *line = NULL;
+        size_t len = 512;
+        char *ptr = NULL;
+        char *key_ptr = NULL;
+        char *prev_ptr = NULL;
+        while (getline(&line, &len, pvd_file) != -1) {
+            msg_Dbg(crd, "%s", line);
+            // strip the newline character
+            line[strcspn(line, "\n")] = 0;
+            prev_ptr = NULL;
+            ptr = strtok(line, ": ");
+            key_ptr = strdup(ptr);
+            while(ptr != NULL) {
+                prev_ptr = ptr;
+                ptr = strtok(NULL, ": ");
+            }
+            if (prev_ptr == NULL) {
+                msg_Err(crd, "Unable to parse PvD config file. Wrong syntax");
+                return VLC_EGENERIC;
+            }
+            vlc_dictionary_insert(pvds, strdup(key_ptr), strdup(prev_ptr));
+            msg_Dbg(crd, "Key: %s", key_ptr);
+            msg_Dbg(crd, "Value: %s", prev_ptr);
+        }
+        free(line);
+        fclose(pvd_file);
+        msg_Dbg(crd, "Number of keys: %d", vlc_dictionary_keys_count(pvds));
+    }
+    return VLC_SUCCESS;
+}
+
 static void gnutls_ClientDestroy(vlc_tls_client_t *crd)
 {
     gnutls_certificate_credentials_t x509 = crd->sys;
 
     gnutls_certificate_free_credentials(x509);
+
+    vlc_dictionary_clear(crd->pvds, NULL, NULL);
+    free(crd->pvds);
 }
 
 static const struct vlc_tls_client_operations gnutls_ClientOps =
@@ -594,6 +644,20 @@ static int OpenClient(vlc_tls_client_t *crd)
 
     crd->ops = &gnutls_ClientOps;
     crd->sys = x509;
+
+    /// open and parse PvD config file
+    char *pvd_config = var_InheritString(crd, "gnutls-pvd-config");
+    // dictionary mapping urls to PvD names
+    vlc_dictionary_t *pvds = malloc(sizeof(vlc_dictionary_t));
+
+    int ret = gnutls_pvd_parse_config(crd, pvds, pvd_config);
+    if (ret != VLC_SUCCESS) {
+        vlc_dictionary_clear(pvds, NULL, NULL);
+        free(pvds);
+        return ret;
+    }
+
+    crd->pvds = pvds;
     return VLC_SUCCESS;
 }
 
@@ -742,6 +806,10 @@ error:
 #define PRIORITIES_LONGTEXT N_("Ciphers, key exchange methods, " \
     "hash functions and compression methods can be selected. " \
     "Refer to GNU TLS documentation for detailed syntax.")
+
+#define PVD_CONF_TEXT "PvDs config file"
+#define PVD_CONF_LONGTEXT "Provide the configuration file mapping " \
+    "URLs to Provisioning Domains"
 static const char *const priorities_values[] = {
     "PERFORMANCE",
     "NORMAL",
@@ -771,6 +839,9 @@ vlc_module_begin ()
     add_string ("gnutls-priorities", "NORMAL", PRIORITIES_TEXT,
                 PRIORITIES_LONGTEXT, false)
         change_string_list (priorities_values, priorities_text)
+    add_string("gnutls-pvd-config", NULL, "PvDs config file",
+               "Provide the configuration file mapping URLs to Provisioning Domains", true)
+        change_safe()
 #ifdef ENABLE_SOUT
     add_submodule ()
         set_description( N_("GNU TLS server") )

@@ -36,6 +36,9 @@
 #ifndef SOL_TCP
 # define SOL_TCP IPPROTO_TCP
 #endif
+#ifndef _WIN32
+#include <libpvd.h>
+#endif
 
 #include <vlc_common.h>
 #include "libvlc.h"
@@ -219,6 +222,24 @@ vlc_tls_t *vlc_tls_SocketOpenTLS(vlc_tls_client_t *creds, const char *name,
         .ai_socktype = SOCK_STREAM,
         .ai_protocol = IPPROTO_TCP,
     }, *res;
+
+#ifndef _WIN32
+    if (creds->pvds) {
+        msg_Dbg(creds, "creds->pvds != NULL");
+        char **keys = vlc_dictionary_all_keys(creds->pvds);
+        for (int i = 0; i < vlc_dictionary_keys_count(creds->pvds); ++i) {
+            if (strstr(name, keys[i])) {
+                char *value = vlc_dictionary_value_for_key(creds->pvds, keys[i]);
+                msg_Dbg(creds, "key: %s, value: %s", keys[i], value);
+                proc_bind_to_pvd(strdup(value));
+                char proc_pvd[256];
+                proc_get_bound_pvd(proc_pvd);
+                msg_Dbg(creds, "Process bound to PvD: %s", proc_pvd);
+                break;
+            }
+        }
+    }
+#endif
 
     msg_Dbg(creds, "resolving %s ...", name);
 

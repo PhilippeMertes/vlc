@@ -394,7 +394,8 @@ libvlccore_la_SOURCES = \
 libvlccore_la_LIBADD = $(LIBS_libvlccore) \
 	../compat/libcompat.la \
 	$(LTLIBINTL) $(LTLIBICONV) \
-	$(IDN_LIBS) $(SOCKET_LIBS) $(LIBRT) $(LIBDL) $(LIBM)
+	$(IDN_LIBS) $(SOCKET_LIBS) $(LIBRT) $(LIBDL) $(LIBM) \
+	/usr/local/lib/pvd/libpvd.la
 
 if HAVE_WIN32
 libvlccore_la_SOURCES += \
