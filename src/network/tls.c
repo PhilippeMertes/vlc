@@ -33,6 +33,7 @@
 #endif
 #include <assert.h>
 #include <errno.h>
+#include <time.h>
 #ifndef SOL_TCP
 # define SOL_TCP IPPROTO_TCP
 #endif
@@ -226,11 +227,45 @@ vlc_tls_t *vlc_tls_SocketOpenTLS(vlc_tls_client_t *creds, const char *name,
 #ifndef _WIN32
     if (creds->url_pvds) {
         msg_Dbg(creds, "creds->url_pvds != NULL");
+
+        // check for preferred default PvD
+        char *def_pvd = NULL;
+        vlc_array_t *pvd_arr = NULL;
+        if (vlc_dictionary_has_key(creds->url_pvds, "default")) {
+            pvd_arr = vlc_dictionary_value_for_key(creds->url_pvds, "default");
+            def_pvd = vlc_array_item_at_index(pvd_arr, 0);
+            printf("def_pvd: %s\n", def_pvd);
+        }
+
+        // traverse different URL keys
         char **keys = vlc_dictionary_all_keys(creds->url_pvds);
         for (int i = 0; i < vlc_dictionary_keys_count(creds->url_pvds); ++i) {
             if (strstr(name, keys[i])) {
-                vlc_array_t *pvd_arr = vlc_dictionary_value_for_key(creds->url_pvds, keys[i]);
-                char *pvd = vlc_array_item_at_index(pvd_arr, 0);
+                pvd_arr = vlc_dictionary_value_for_key(creds->url_pvds, keys[i]);
+                char *pvd = NULL;
+
+                // check if default preferred PvD in array associated to URL
+                bool use_def_pvd = 0;
+                if (def_pvd) {
+                    for (size_t j = 0; j < vlc_array_count(pvd_arr); ++j) {
+                        if (strcmp(def_pvd, vlc_array_item_at_index(pvd_arr, j)) == 0) {
+                            pvd = def_pvd;
+                            use_def_pvd = 1;
+                            break;
+                        }
+                    }
+                }
+
+                // if no default PvD used, take one randomly
+                if (!use_def_pvd) {
+                    srand(time(NULL));
+                    int index = rand();
+                    index = index % vlc_array_count(pvd_arr);
+                    printf("vlc_array_count: %ld\nindex: %d\n", vlc_array_count(pvd_arr), index);
+                    pvd = vlc_array_item_at_index(pvd_arr, index);
+                }
+
+                printf("PvD: %s\n", pvd);
                 proc_bind_to_pvd(strdup(pvd));
                 char proc_pvd[256];
                 proc_get_bound_pvd(proc_pvd);
