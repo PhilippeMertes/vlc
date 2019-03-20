@@ -56,6 +56,7 @@
 #include "dialogs/external.hpp"
 #include "dialogs/epg.hpp"
 #include "dialogs/errors.hpp"
+#include "dialogs/pvd_stats.hpp"
 
 #include <QEvent>
 #include <QApplication>
@@ -340,6 +341,11 @@ void DialogsProvider::pluginDialog()
 void DialogsProvider::epgDialog()
 {
     EpgDialog::getInstance( p_intf )->toggleVisible();
+}
+
+void DialogsProvider::pvdStatsDialog()
+{
+    PvdStatsDialog::getInstance(p_intf)->toggleVisible();
 }
 
 void DialogsProvider::setPopupMenu()

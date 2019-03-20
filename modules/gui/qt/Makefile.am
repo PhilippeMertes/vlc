@@ -58,6 +58,7 @@ libqt_plugin_la_SOURCES = \
 	gui/qt/dialogs/preferences.cpp gui/qt/dialogs/preferences.hpp \
 	gui/qt/dialogs/mediainfo.cpp gui/qt/dialogs/mediainfo.hpp \
 	gui/qt/dialogs/epg.cpp gui/qt/dialogs/epg.hpp \
+	gui/qt/dialogs/pvd_stats.cpp gui/qt/dialogs/pvd_stats.hpp \
 	gui/qt/dialogs/extended.cpp gui/qt/dialogs/extended.hpp \
 	gui/qt/dialogs/messages.cpp gui/qt/dialogs/messages.hpp \
 	gui/qt/dialogs/errors.cpp gui/qt/dialogs/errors.hpp \
@@ -80,6 +81,7 @@ libqt_plugin_la_SOURCES = \
 	gui/qt/components/extended_panels.cpp \
 	gui/qt/components/extended_panels.hpp \
 	gui/qt/components/info_panels.cpp gui/qt/components/info_panels.hpp \
+	gui/qt/components/pvd_panels.cpp gui/qt/components/pvd_panels.hpp \
 	gui/qt/components/info_widgets.cpp gui/qt/components/info_widgets.hpp \
 	gui/qt/components/preferences_widgets.cpp \
 	gui/qt/components/preferences_widgets.hpp \
@@ -183,6 +185,7 @@ nodist_libqt_plugin_la_SOURCES = \
 	gui/qt/dialogs/extended.moc.cpp \
 	gui/qt/dialogs/messages.moc.cpp \
 	gui/qt/dialogs/epg.moc.cpp \
+	gui/qt/dialogs/pvd_stats.moc.cpp \
 	gui/qt/dialogs/errors.moc.cpp \
 	gui/qt/dialogs/external.moc.cpp \
 	gui/qt/dialogs/plugins.moc.cpp \
@@ -200,6 +203,7 @@ nodist_libqt_plugin_la_SOURCES = \
 	gui/qt/dialogs/fingerprintdialog.moc.cpp \
 	gui/qt/components/extended_panels.moc.cpp \
 	gui/qt/components/info_panels.moc.cpp \
+	gui/qt/components/pvd_panels.moc.cpp \
 	gui/qt/components/info_widgets.moc.cpp \
 	gui/qt/components/preferences_widgets.moc.cpp \
 	gui/qt/components/complete_preferences.moc.cpp \

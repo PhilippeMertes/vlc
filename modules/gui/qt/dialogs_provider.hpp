@@ -142,6 +142,7 @@ public slots:
     void toolbarDialog();
     void pluginDialog();
     void epgDialog();
+    void pvdStatsDialog();
     void setPopupMenu();
     void destroyPopupMenu();
 
