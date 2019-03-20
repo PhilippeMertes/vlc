@@ -43,6 +43,8 @@
 #import "main/VLCMain.h"
 #import "menus/VLCMainMenu.h"
 
+#import <vlc_playlist_legacy.h>
+
 /*****************************************************************************
  * VLCVoutView implementation
  *****************************************************************************/
@@ -68,7 +70,7 @@
 - (void)dealloc
 {
     if (p_vout)
-        vlc_object_release(p_vout);
+        vout_Release(p_vout);
 
     [self unregisterDraggedTypes];
 }
@@ -181,7 +183,7 @@
                 [[VLCCoreInteraction sharedInstance] toggleFullscreen];
             else if (p_vout) {
                 val.i_int |= (int)CocoaKeyToVLC(key);
-                var_Set(p_vout->obj.libvlc, "key-pressed", val);
+                var_Set(vlc_object_instance(p_vout), "key-pressed", val);
             }
             else
                 msg_Dbg(getIntf(), "could not send keyevent to VLC core");
@@ -283,7 +285,7 @@
 
         while (ABS(f_cumulatedYScrollValue) >= f_yThreshold) {
             f_cumulatedYScrollValue -= (f_cumulatedYScrollValue > 0 ? f_yThreshold : -f_yThreshold);
-            var_SetInteger(p_intf->obj.libvlc, "key-pressed", key);
+            var_SetInteger(vlc_object_instance(p_intf), "key-pressed", key);
             msg_Dbg(p_intf, "Scrolling in y direction");
         }
 
@@ -297,7 +299,7 @@
 
         while (ABS(f_cumulatedXScrollValue) >= f_xThreshold) {
             f_cumulatedXScrollValue -= (f_cumulatedXScrollValue > 0 ? f_xThreshold : -f_xThreshold);
-            var_SetInteger(p_intf->obj.libvlc, "key-pressed", key);
+            var_SetInteger(vlc_object_instance(p_intf), "key-pressed", key);
             msg_Dbg(p_intf, "Scrolling in x direction");
         }
     }
@@ -316,13 +318,13 @@
 {
     assert(p_vout == NULL);
     p_vout = p_vout_thread;
-    vlc_object_hold(p_vout);
+    vout_Hold(p_vout);
 }
 
 - (vout_thread_t *)voutThread
 {
     if (p_vout) {
-        vlc_object_hold(p_vout);
+        vout_Hold(p_vout);
         return p_vout;
     }
 
@@ -332,7 +334,7 @@
 - (void)releaseVoutThread
 {
     if (p_vout) {
-        vlc_object_release(p_vout);
+        vout_Release(p_vout);
         p_vout = NULL;
     }
 }

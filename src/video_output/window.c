@@ -43,12 +43,16 @@ typedef struct
     vlc_inhibit_t *inhibit;
 } window_t;
 
-static int vout_window_start(void *func, va_list ap)
+static int vout_window_start(void *func, bool forced, va_list ap)
 {
     int (*activate)(vout_window_t *) = func;
     vout_window_t *wnd = va_arg(ap, vout_window_t *);
 
-    return activate(wnd);
+    int ret = activate(wnd);
+    if (ret)
+        vlc_objres_clear(VLC_OBJECT(wnd));
+    (void) forced;
+    return ret;
 }
 
 vout_window_t *vout_window_New(vlc_object_t *obj, const char *module,
@@ -66,14 +70,12 @@ vout_window_t *vout_window_New(vlc_object_t *obj, const char *module,
     w->module = vlc_module_load(window, "vout window", module, false,
                                 vout_window_start, window);
     if (!w->module) {
-        vlc_object_release(window);
+        vlc_object_delete(window);
         return NULL;
     }
 
     /* Hook for screensaver inhibition */
-    if (var_InheritBool(obj, "disable-screensaver") &&
-        (window->type == VOUT_WINDOW_TYPE_XID || window->type == VOUT_WINDOW_TYPE_HWND
-      || window->type == VOUT_WINDOW_TYPE_WAYLAND))
+    if (var_InheritBool(obj, "disable-screensaver"))
         w->inhibit = vlc_inhibit_Create(VLC_OBJECT(window));
     else
         w->inhibit = NULL;
@@ -120,7 +122,7 @@ void vout_window_Delete(vout_window_t *window)
     if (window->ops->destroy != NULL)
         window->ops->destroy(window);
     vlc_objres_clear(VLC_OBJECT(window));
-    vlc_object_release(window);
+    vlc_object_delete(window);
 }
 
 void vout_window_SetInhibition(vout_window_t *window, bool enabled)
@@ -149,7 +151,7 @@ typedef struct vout_display_window
 static void vout_display_window_ResizeNotify(vout_window_t *window,
                                              unsigned width, unsigned height)
 {
-    vout_thread_t *vout = (vout_thread_t *)window->obj.parent;
+    vout_thread_t *vout = (vout_thread_t *)vlc_object_parent(window);
 
     msg_Dbg(window, "resized to %ux%u", width, height);
     vout_ChangeDisplaySize(vout, width, height);
@@ -173,7 +175,7 @@ static void vout_display_window_StateNotify(vout_window_t *window,
 
     assert(state < ARRAY_SIZE(states));
     msg_Dbg(window, "window state changed: %s", states[state]);
-    var_SetInteger(window->obj.parent, "window-state", state);
+    var_SetInteger(vlc_object_parent(window), "window-state", state);
 }
 
 static void vout_display_window_FullscreenNotify(vout_window_t *window,
@@ -181,22 +183,22 @@ static void vout_display_window_FullscreenNotify(vout_window_t *window,
 {
     msg_Dbg(window, (id != NULL) ? "window set to fullscreen on %s"
                                  : "window set to fullscreen", id);
-    var_SetString(window->obj.parent, "window-fullscreen-output",
+    var_SetString(vlc_object_parent(window), "window-fullscreen-output",
                   (id != NULL) ? id : "");
-    var_SetBool(window->obj.parent, "window-fullscreen", true);
+    var_SetBool(vlc_object_parent(window), "window-fullscreen", true);
 }
 
 static void vout_display_window_WindowingNotify(vout_window_t *window)
 {
     msg_Dbg(window, "window set windowed");
-    var_SetBool(window->obj.parent, "window-fullscreen", false);
+    var_SetBool(vlc_object_parent(window), "window-fullscreen", false);
 }
 
 static void vout_display_window_MouseEvent(vout_window_t *window,
                                            const vout_window_mouse_event_t *ev)
 {
     vout_display_window_t *state = window->owner.sys;
-    vout_thread_t *vout = (vout_thread_t *)window->obj.parent;
+    vout_thread_t *vout = (vout_thread_t *)vlc_object_parent(window);
     vlc_mouse_t *m = &state->mouse;
 
     m->b_double_click = false;
@@ -247,7 +249,7 @@ static void vout_display_window_MouseEvent(vout_window_t *window,
 static void vout_display_window_KeyboardEvent(vout_window_t *window,
                                               unsigned key)
 {
-    var_SetInteger(window->obj.libvlc, "key-pressed", key);
+    var_SetInteger(vlc_object_instance(window), "key-pressed", key);
 }
 
 static void vout_display_window_OutputEvent(vout_window_t *window,
@@ -306,7 +308,7 @@ vout_window_t *vout_display_window_New(vout_thread_t *vout)
  */
 void vout_display_window_Delete(vout_window_t *window)
 {
-    vout_thread_t *vout = (vout_thread_t *)(window->obj.parent);
+    vout_thread_t *vout = (vout_thread_t *)vlc_object_parent(window);
     vout_display_window_t *state = window->owner.sys;
 
     vout_window_Disable(window);

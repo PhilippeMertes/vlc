@@ -28,7 +28,7 @@
 #include <vlc_codec.h>
 #include <vlc_mouse.h>
 
-decoder_t *input_DecoderNew( input_thread_t *, es_format_t *, input_clock_t *,
+decoder_t *input_DecoderNew( input_thread_t *, es_format_t *, vlc_clock_t *,
                              sout_instance_t * ) VLC_USED;
 
 /**
@@ -108,13 +108,6 @@ bool input_DecoderHasFormatChanged( decoder_t *p_dec, es_format_t *p_fmt, vlc_me
  * This function returns the current size in bytes of the decoder fifo
  */
 size_t input_DecoderGetFifoSize( decoder_t *p_dec );
-
-/**
- * This function returns the objects associated to a decoder
- *
- * They must be released using vlc_object_release().
- */
-void input_DecoderGetObjects( decoder_t *, vout_thread_t **, audio_output_t ** );
 
 void input_DecoderSetVoutMouseEvent( decoder_t *, vlc_mouse_event, void * );
 int  input_DecoderAddVoutOverlay( decoder_t *, subpicture_t *, int * );

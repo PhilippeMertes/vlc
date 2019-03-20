@@ -282,7 +282,8 @@ static int CreateFilter ( vlc_object_t *p_this )
     p_sys->b_vnc_key_events = var_InheritBool( p_this,
                                                RMTOSD_CFG "key-events" );
     if( p_sys->b_vnc_key_events )
-        var_AddCallback( p_filter->obj.libvlc, "key-pressed", KeyEvent, p_this );
+        var_AddCallback( vlc_object_instance(p_filter), "key-pressed",
+                         KeyEvent, p_this );
 
     msg_Dbg( p_filter, "osdvnc filter started" );
 
@@ -310,7 +311,8 @@ static void DestroyFilter( vlc_object_t *p_this )
     msg_Dbg( p_filter, "DestroyFilter called." );
 
     if( p_sys->b_vnc_key_events )
-        var_DelCallback( p_filter->obj.libvlc, "key-pressed", KeyEvent, p_this );
+        var_DelCallback( vlc_object_instance(p_filter), "key-pressed",
+                         KeyEvent, p_this );
 
     vlc_cancel( p_sys->worker_thread );
     vlc_join( p_sys->worker_thread, NULL );
@@ -396,8 +398,8 @@ static vlc_tls_t *vnc_connect( filter_t *p_filter )
         }
 
         int err = vnc_encrypt_bytes( challenge, p_sys->psz_passwd );
-	if (err != VLC_SUCCESS)
-	    return false;
+        if (err != VLC_SUCCESS)
+            return false;
 
         if( !write_exact(fd, challenge, CHALLENGESIZE ) )
         {
@@ -1325,7 +1327,7 @@ static int vnc_encrypt_bytes( unsigned char *bytes, char *passwd )
     gcry_cipher_hd_t ctx;
     int err = gcry_cipher_open( &ctx, GCRY_CIPHER_DES, GCRY_CIPHER_MODE_ECB,0);
     if (err)
-	return VLC_EGENERIC;
+        return VLC_EGENERIC;
 
     /* reverse bits of the key */
     for( unsigned i = 0 ; i < 8 ; i++ )

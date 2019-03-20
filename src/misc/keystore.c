@@ -43,7 +43,7 @@ keystore_create(vlc_object_t *p_parent, const char *psz_name)
     p_keystore->p_module = module_need(p_keystore, "keystore", psz_name, true);
     if (p_keystore->p_module == NULL)
     {
-        vlc_object_release(p_keystore);
+        vlc_object_delete(p_keystore);
         return NULL;
     }
     assert(p_keystore->pf_store);
@@ -72,7 +72,7 @@ vlc_keystore_release(vlc_keystore *p_keystore)
     assert(p_keystore);
     module_unneed(p_keystore, p_keystore->p_module);
 
-    vlc_object_release(p_keystore);
+    vlc_object_delete(p_keystore);
 }
 
 int
@@ -156,7 +156,7 @@ libvlc_InternalKeystoreClean(libvlc_int_t *p_libvlc)
 static vlc_keystore *
 get_memory_keystore(vlc_object_t *p_obj)
 {
-    return libvlc_priv(p_obj->obj.libvlc)->p_memory_keystore;
+    return libvlc_priv(vlc_object_instance(p_obj))->p_memory_keystore;
 }
 
 static vlc_keystore_entry *

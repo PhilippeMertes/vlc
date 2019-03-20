@@ -38,14 +38,18 @@ struct vlc_gl_priv_t
     vlc_atomic_rc_t rc;
 };
 
-static int vlc_gl_start(void *func, va_list ap)
+static int vlc_gl_start(void *func, bool forced, va_list ap)
 {
     int (*activate)(vlc_gl_t *, unsigned, unsigned) = func;
     vlc_gl_t *gl = va_arg(ap, vlc_gl_t *);
     unsigned width = va_arg(ap, unsigned);
     unsigned height = va_arg(ap, unsigned);
 
-    return activate(gl, width, height);
+    int ret = activate(gl, width, height);
+    if (ret)
+        vlc_objres_clear(VLC_OBJECT(gl));
+    (void) forced;
+    return ret;
 }
 
 static void vlc_gl_stop(void *func, va_list ap)
@@ -86,7 +90,7 @@ vlc_gl_t *vlc_gl_Create(const struct vout_display_cfg *restrict cfg,
                                  cfg->display.width, cfg->display.height);
     if (gl->module == NULL)
     {
-        vlc_object_release(gl);
+        vlc_object_delete(gl);
         return NULL;
     }
     assert(gl->makeCurrent && gl->releaseCurrent && gl->swap
@@ -108,8 +112,9 @@ void vlc_gl_Release(vlc_gl_t *gl)
     if (!vlc_atomic_rc_dec(&glpriv->rc))
         return;
 
-    vlc_module_unload(gl, gl->module, vlc_gl_stop, gl);
-    vlc_object_release(gl);
+    vlc_module_unload(gl->module, vlc_gl_stop, gl);
+    vlc_objres_clear(VLC_OBJECT(gl));
+    vlc_object_delete(gl);
 }
 
 #include <vlc_vout_window.h>

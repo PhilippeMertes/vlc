@@ -32,8 +32,6 @@
 #include "dialogs_provider.hpp"
 #include "util/customwidgets.hpp"               // qtEventToVLCKey, QVLCStackedWidget
 
-#include "menus.hpp"             /* Popup menu on bgWidget */
-
 #include <QLabel>
 #include <QToolButton>
 #include <QPalette>
@@ -802,9 +800,8 @@ void SpeedControlWidget::updateRate( int sliderValue )
     lastValue = sliderValue;
 
     double speed = pow( 2, (double)sliderValue / 17 );
-    int rate = INPUT_RATE_DEFAULT / speed;
 
-    THEMIM->getIM()->setRate(rate);
+    THEMIM->getIM()->setRate(speed);
     //spinBox->setValue( var_InheritFloat( THEPL, "rate" ) );
 }
 
@@ -815,7 +812,7 @@ void SpeedControlWidget::updateSpinBoxRate( double r )
 
 void SpeedControlWidget::resetRate()
 {
-    THEMIM->getIM()->setRate( INPUT_RATE_DEFAULT );
+    THEMIM->getIM()->setRate( 1.0f );
 }
 
 CoverArtLabel::CoverArtLabel( QWidget *parent, intf_thread_t *_p_i )

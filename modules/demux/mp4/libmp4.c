@@ -1246,6 +1246,15 @@ static int MP4_ReadBox_tkhd(  stream_t *p_stream, MP4_Box_t *p_box )
     double scale[2];    // scale factor; sx = scale[0] , sy = scale[1]
     int32_t *matrix = p_box->data.p_tkhd->i_matrix;
 
+    int64_t det = (int64_t)matrix[0] * matrix[4] - (int64_t)matrix[1] * matrix[3];
+    if (det < 0) {
+        /* If determinant is negative copy the matrix and flip it horizontally. */
+        const int flip[] = { -1, 1, 1 };
+        for (int j = 0; j < 9; j++)
+            matrix[j] *= flip[j % 3];
+        p_box->data.p_tkhd->i_flip = 1;
+    }
+
     scale[0] = sqrt(conv_fx(matrix[0]) * conv_fx(matrix[0]) +
                     conv_fx(matrix[3]) * conv_fx(matrix[3]));
     scale[1] = sqrt(conv_fx(matrix[1]) * conv_fx(matrix[1]) +
@@ -2258,8 +2267,9 @@ static int MP4_ReadBox_sgpd( stream_t *p_stream, MP4_Box_t *p_box )
                 {
                     if( i_read < 1 )
                     {
+                        free( p_sgpd->p_entries );
                         p_sgpd->i_entry_count = 0;
-                        MP4_FreeBox_sgpd( p_box );
+                        p_sgpd->p_entries = NULL;
                         MP4_READBOX_EXIT( 0 );
                     }
                     uint8_t i_data;
@@ -5437,10 +5447,9 @@ static void MP4_BoxDumpStructure_Internal( stream_t *s, const MP4_Box_t *p_box,
         }
 
         snprintf( &str[i_level * 4], sizeof(str) - 4*i_level,
-                  "+ %4.4s size %"PRIu64" offset %" PRIuMAX "%s",
-                    (char*)&i_displayedtype, p_box->i_size,
-                  (uintmax_t)p_box->i_pos,
-                p_box->e_flags & BOX_FLAG_INCOMPLETE ? " (\?\?\?\?)" : "" );
+                  "+ %4.4s size %"PRIu64" offset %"PRIu64"%s",
+                  (char *)&i_displayedtype, p_box->i_size, p_box->i_pos,
+                  p_box->e_flags & BOX_FLAG_INCOMPLETE ? " (\?\?\?\?)" : "" );
         msg_Dbg( s, "%s", str );
     }
     p_child = p_box->p_first;

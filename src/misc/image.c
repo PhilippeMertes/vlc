@@ -73,7 +73,6 @@ static picture_t *ImageConvert( image_handler_t *, picture_t *,
                                 const video_format_t *, video_format_t * );
 
 static decoder_t *CreateDecoder( image_handler_t *, const es_format_t * );
-static void DeleteDecoder( decoder_t * );
 static encoder_t *CreateEncoder( vlc_object_t *, const video_format_t *,
                                  const video_format_t * );
 static void DeleteEncoder( encoder_t * );
@@ -117,7 +116,7 @@ void image_HandlerDelete( image_handler_t *p_image )
 {
     if( !p_image ) return;
 
-    if( p_image->p_dec ) DeleteDecoder( p_image->p_dec );
+    decoder_Destroy( p_image->p_dec );
     if( p_image->p_enc ) DeleteEncoder( p_image->p_enc );
     if( p_image->p_converter ) DeleteConverter( p_image->p_converter );
 
@@ -154,8 +153,8 @@ static picture_t *ImageRead( image_handler_t *p_image, block_t *p_block,
     if( p_image->p_dec &&
         p_image->p_dec->fmt_in.i_codec != p_es_in->video.i_chroma )
     {
-        DeleteDecoder( p_image->p_dec );
-        p_image->p_dec = 0;
+        decoder_Destroy( p_image->p_dec );
+        p_image->p_dec = NULL;
     }
 
     /* Start a decoder */
@@ -169,7 +168,7 @@ static picture_t *ImageRead( image_handler_t *p_image, block_t *p_block,
         }
         if( p_image->p_dec->fmt_out.i_cat != VIDEO_ES )
         {
-            DeleteDecoder( p_image->p_dec );
+            decoder_Destroy( p_image->p_dec );
             p_image->p_dec = NULL;
             block_Release(p_block);
             return NULL;
@@ -302,23 +301,23 @@ static picture_t *ImageReadUrl( image_handler_t *p_image, const char *psz_url,
     if( p_block == NULL )
         goto error;
 
-    es_format_t fmtin;
-    es_format_Init( &fmtin, VIDEO_ES, 0 ); /* no chroma, the MIME type of the picture will be used */
-
+    vlc_fourcc_t i_chroma = 0;
     char *psz_mime = stream_MimeType( p_stream );
     if( psz_mime != NULL )
     {
-        fmtin.video.i_chroma = image_Mime2Fourcc( psz_mime );
+        i_chroma = image_Mime2Fourcc( psz_mime );
         free( psz_mime );
     }
-    if( !fmtin.video.i_chroma )
+    if( !i_chroma )
     {
        /* Try to guess format from file name */
-       fmtin.video.i_chroma = image_Ext2Fourcc( psz_url );
+       i_chroma = image_Ext2Fourcc( psz_url );
     }
     vlc_stream_Delete( p_stream );
 
 
+    es_format_t fmtin;
+    es_format_Init( &fmtin, VIDEO_ES, i_chroma );
     p_pic = ImageRead( p_image, p_block, &fmtin, p_fmt_out );
 
     es_format_Clean( &fmtin );
@@ -673,11 +672,7 @@ static decoder_t *CreateDecoder( image_handler_t *p_image, const es_format_t *fm
     p_dec = &p_owner->dec;
     p_owner->p_image = p_image;
 
-    p_dec->p_module = NULL;
-
-    es_format_Copy( &p_dec->fmt_in, fmt );
-    es_format_Init( &p_dec->fmt_out, VIDEO_ES, 0 );
-    p_dec->b_frame_drop_allowed = false;
+    decoder_Init( p_dec, fmt );
 
     static const struct decoder_owner_callbacks dec_cbs =
     {
@@ -697,26 +692,13 @@ static decoder_t *CreateDecoder( image_handler_t *p_image, const es_format_t *fm
                  "VLC probably does not support this image format.",
                  (char*)&p_dec->fmt_in.i_codec );
 
-        DeleteDecoder( p_dec );
+        decoder_Destroy( p_dec );
         p_dec = NULL;
     }
 
     return p_dec;
 }
 
-static void DeleteDecoder( decoder_t * p_dec )
-{
-    if( p_dec->p_module ) module_unneed( p_dec, p_dec->p_module );
-
-    es_format_Clean( &p_dec->fmt_in );
-    es_format_Clean( &p_dec->fmt_out );
-
-    if( p_dec->p_description )
-        vlc_meta_Delete( p_dec->p_description );
-
-    vlc_object_release( p_dec );
-    p_dec = NULL;
-}
 
 static encoder_t *CreateEncoder( vlc_object_t *p_this, const video_format_t *fmt_in,
                                  const video_format_t *fmt_out )
@@ -794,8 +776,7 @@ static void DeleteEncoder( encoder_t * p_enc )
     es_format_Clean( &p_enc->fmt_in );
     es_format_Clean( &p_enc->fmt_out );
 
-    vlc_object_release( p_enc );
-    p_enc = NULL;
+    vlc_object_delete(p_enc);
 }
 
 static picture_t *filter_new_picture( filter_t *p_filter )
@@ -844,5 +825,5 @@ static void DeleteConverter( filter_t * p_filter )
     es_format_Clean( &p_filter->fmt_in );
     es_format_Clean( &p_filter->fmt_out );
 
-    vlc_object_release( p_filter );
+    vlc_object_delete(p_filter);
 }

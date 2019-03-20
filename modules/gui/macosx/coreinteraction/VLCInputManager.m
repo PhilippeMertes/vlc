@@ -20,29 +20,22 @@
 
 #import "VLCInputManager.h"
 
-#import <MediaPlayer/MediaPlayer.h>
-
 #include <vlc_url.h>
+#import <vlc_playlist_legacy.h>
 
 #import "coreinteraction/VLCCoreInteraction.h"
 #import "main/CompatibilityFixes.h"
 #import "main/VLCMain.h"
 #import "menus/VLCMainMenu.h"
-#import "os-integration/VLCRemoteControlService.h"
-#import "os-integration/iTunes.h"
-#import "os-integration/Spotify.h"
-#import "panels/VLCPlaylistInfo.h"
 #import "panels/VLCTrackSynchronizationWindowController.h"
 #import "panels/dialogs/VLCResumeDialogController.h"
 #import "windows/extensions/VLCExtensionsManager.h"
 #import "windows/mainwindow/VLCMainWindow.h"
 #import "windows/video/VLCVoutView.h"
 
-
 @interface VLCInputManager()
 - (void)updateMainMenu;
 - (void)updateMainWindow;
-- (void)updateMetaAndInfo;
 - (void)updateDelays;
 @end
 
@@ -83,9 +76,6 @@ static int InputEvent(vlc_object_t *p_this, const char *psz_var,
                 [inputManager performSelectorOnMainThread:@selector(updateMainWindow) withObject:nil waitUntilDone:NO];
                 break;
             case INPUT_EVENT_STATISTICS:
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    [[[VLCMain sharedInstance] currentMediaInfoPanel] updateStatistics];
-                });
                 break;
             case INPUT_EVENT_ES:
                 break;
@@ -95,7 +85,6 @@ static int InputEvent(vlc_object_t *p_this, const char *psz_var,
             case INPUT_EVENT_ITEM_INFO:
                 [inputManager performSelectorOnMainThread:@selector(updateMainMenu) withObject: nil waitUntilDone:NO];
                 [inputManager performSelectorOnMainThread:@selector(updateName) withObject: nil waitUntilDone:NO];
-                [inputManager performSelectorOnMainThread:@selector(updateMetaAndInfo) withObject: nil waitUntilDone:NO];
                 break;
             case INPUT_EVENT_BOOKMARK:
                 break;
@@ -135,21 +124,6 @@ static int InputEvent(vlc_object_t *p_this, const char *psz_var,
 
     input_thread_t *p_current_input;
     dispatch_queue_t informInputChangedQueue;
-
-    /* sleep management */
-    IOPMAssertionID systemSleepAssertionID;
-    IOPMAssertionID monitorSleepAssertionID;
-
-    IOPMAssertionID userActivityAssertionID;
-
-    /* iTunes/Spotify play/pause support */
-    BOOL b_has_itunes_paused;
-    BOOL b_has_spotify_paused;
-
-    /* remote control support */
-    VLCRemoteControlService *_remoteControlService;
-
-    NSTimer *hasEndedTimer;
 }
 @end
 
@@ -175,11 +149,6 @@ static int InputEvent(vlc_object_t *p_this, const char *psz_var,
         var_AddCallback(pl_Get(getIntf()), "input-current", InputThreadChanged, (__bridge void *)self);
 
         informInputChangedQueue = dispatch_queue_create("org.videolan.vlc.inputChangedQueue", DISPATCH_QUEUE_SERIAL);
-
-        if (@available(macOS 10.12.2, *)) {
-            _remoteControlService = [[VLCRemoteControlService alloc] init];
-            [_remoteControlService subscribeToRemoteCommands];
-        }
     }
     return self;
 }
@@ -194,16 +163,13 @@ static int InputEvent(vlc_object_t *p_this, const char *psz_var,
 - (void)deinit
 {
     msg_Dbg(getIntf(), "Deinitializing input manager");
-    if (@available(macOS 10.12.2, *)) {
-        [_remoteControlService unsubscribeFromRemoteCommands];
-    }
 
     if (p_current_input) {
         /* continue playback where you left off */
         [self storePlaybackPositionForItem:p_current_input];
 
         var_DelCallback(p_current_input, "intf-event", InputEvent, (__bridge void *)self);
-        vlc_object_release(p_current_input);
+        input_Release(p_current_input);
         p_current_input = NULL;
     }
 
@@ -218,7 +184,7 @@ static int InputEvent(vlc_object_t *p_this, const char *psz_var,
 {
     if (p_current_input) {
         var_DelCallback(p_current_input, "intf-event", InputEvent, (__bridge void *)self);
-        vlc_object_release(p_current_input);
+        input_Release(p_current_input);
         p_current_input = NULL;
 
         [[o_main mainMenu] setRateControlsEnabled: NO];
@@ -243,7 +209,7 @@ static int InputEvent(vlc_object_t *p_this, const char *psz_var,
             [[o_main mainWindow] changePlaylistState: psPlaylistItemChangedEvent];
         }
 
-        p_input_changed = vlc_object_hold(p_current_input);
+        p_input_changed = input_Hold(p_current_input);
 
 //        [[o_main playlist] currentlyPlayingItemChanged];
 
@@ -252,8 +218,6 @@ static int InputEvent(vlc_object_t *p_this, const char *psz_var,
         [[NSNotificationCenter defaultCenter] postNotificationName:VLCInputChangedNotification
                                                             object:nil];
     }
-
-    [self updateMetaAndInfo];
 
     [self updateMainWindow];
     [self updateDelays];
@@ -267,13 +231,13 @@ static int InputEvent(vlc_object_t *p_this, const char *psz_var,
     dispatch_async(informInputChangedQueue, ^{
         [[self->o_main extensionsManager] inputChanged:p_input_changed];
         if (p_input_changed)
-            vlc_object_release(p_input_changed);
+            input_Release(p_input_changed);
     });
 }
 
 - (void)playbackStatusUpdated
 {
-    // On shutdown, input might not be dead yet. Cleanup actions like inhibit, itunes playback
+    // On shutdown, input might not be dead yet. Cleanup actions like itunes playback
     // and playback positon are done in different code paths (dealloc and appWillTerminate:).
     if ([[VLCMain sharedInstance] isTerminating]) {
         return;
@@ -284,253 +248,20 @@ static int InputEvent(vlc_object_t *p_this, const char *psz_var,
         state = var_GetInteger(p_current_input, "state");
     }
 
-    // cancel itunes timer if next item starts playing
-    if (state > -1 && state != END_S) {
-        if (hasEndedTimer) {
-            [hasEndedTimer invalidate];
-            hasEndedTimer = nil;
-        }
-    }
-
     if (state == PLAYING_S) {
-        [self stopItunesPlayback];
-
-        [self inhibitSleep];
-
-        [[o_main mainMenu] setPause];
         [[o_main mainWindow] setPause];
-
-        if (@available(macOS 10.12.2, *)) {
-            [MPNowPlayingInfoCenter defaultCenter].playbackState = MPNowPlayingPlaybackStatePlaying;
-        }
     } else {
         [[o_main mainMenu] setSubmenusEnabled: FALSE];
-        [[o_main mainMenu] setPlay];
         [[o_main mainWindow] setPlay];
-
-        if (state == PAUSE_S) {
-            [self releaseSleepBlockers];
-
-            if (@available(macOS 10.12.2, *)) {
-                [MPNowPlayingInfoCenter defaultCenter].playbackState = MPNowPlayingPlaybackStatePaused;
-            }
-        }
 
         if (state == END_S || state == -1) {
             /* continue playback where you left off */
             if (p_current_input)
                 [self storePlaybackPositionForItem:p_current_input];
-
-            if (hasEndedTimer) {
-                [hasEndedTimer invalidate];
-            }
-            hasEndedTimer = [NSTimer scheduledTimerWithTimeInterval: 0.5
-                                                             target: self
-                                                           selector: @selector(onPlaybackHasEnded:)
-                                                           userInfo: nil
-                                                            repeats: NO];
-
-            if (@available(macOS 10.12.2, *)) {
-                [MPNowPlayingInfoCenter defaultCenter].playbackState = MPNowPlayingPlaybackStateStopped;
-            }
         }
     }
 
     [self updateMainWindow];
-    [self sendDistributedNotificationWithUpdatedPlaybackStatus];
-}
-
-// Called when playback has ended and likely no subsequent media will start playing
-- (void)onPlaybackHasEnded:(id)sender
-{
-    msg_Dbg(getIntf(), "Playback has been ended");
-
-    [self releaseSleepBlockers];
-    [self resumeItunesPlayback];
-    hasEndedTimer = nil;
-}
-
-- (void)stopItunesPlayback
-{
-    intf_thread_t *p_intf = getIntf();
-    int64_t controlItunes = var_InheritInteger(p_intf, "macosx-control-itunes");
-    if (controlItunes <= 0)
-        return;
-
-    // pause iTunes
-    if (!b_has_itunes_paused) {
-        iTunesApplication *iTunesApp = (iTunesApplication *) [SBApplication applicationWithBundleIdentifier:@"com.apple.iTunes"];
-        if (iTunesApp && [iTunesApp isRunning]) {
-            if ([iTunesApp playerState] == iTunesEPlSPlaying) {
-                msg_Dbg(p_intf, "pausing iTunes");
-                [iTunesApp pause];
-                b_has_itunes_paused = YES;
-            }
-        }
-    }
-
-    // pause Spotify
-    if (!b_has_spotify_paused) {
-        SpotifyApplication *spotifyApp = (SpotifyApplication *) [SBApplication applicationWithBundleIdentifier:@"com.spotify.client"];
-
-        if (spotifyApp) {
-            if ([spotifyApp respondsToSelector:@selector(isRunning)] && [spotifyApp respondsToSelector:@selector(playerState)]) {
-                if ([spotifyApp isRunning] && [spotifyApp playerState] == kSpotifyPlayerStatePlaying) {
-                    msg_Dbg(p_intf, "pausing Spotify");
-                    [spotifyApp pause];
-                    b_has_spotify_paused = YES;
-                }
-            }
-        }
-    }
-}
-
-- (void)resumeItunesPlayback
-{
-    intf_thread_t *p_intf = getIntf();
-    if (var_InheritInteger(p_intf, "macosx-control-itunes") > 1) {
-        if (b_has_itunes_paused) {
-            iTunesApplication *iTunesApp = (iTunesApplication *) [SBApplication applicationWithBundleIdentifier:@"com.apple.iTunes"];
-            if (iTunesApp && [iTunesApp isRunning]) {
-                if ([iTunesApp playerState] == iTunesEPlSPaused) {
-                    msg_Dbg(p_intf, "unpausing iTunes");
-                    [iTunesApp playpause];
-                }
-            }
-        }
-
-        if (b_has_spotify_paused) {
-            SpotifyApplication *spotifyApp = (SpotifyApplication *) [SBApplication applicationWithBundleIdentifier:@"com.spotify.client"];
-            if (spotifyApp) {
-                if ([spotifyApp respondsToSelector:@selector(isRunning)] && [spotifyApp respondsToSelector:@selector(playerState)]) {
-                    if ([spotifyApp isRunning] && [spotifyApp playerState] == kSpotifyPlayerStatePaused) {
-                        msg_Dbg(p_intf, "unpausing Spotify");
-                        [spotifyApp play];
-                    }
-                }
-            }
-        }
-    }
-
-    b_has_itunes_paused = NO;
-    b_has_spotify_paused = NO;
-}
-
-- (void)inhibitSleep
-{
-    BOOL shouldDisableScreensaver = var_InheritBool(getIntf(), "disable-screensaver");
-
-    /* Declare user activity.
-     This wakes the display if it is off, and postpones display sleep according to the users system preferences
-     Available from 10.7.3 */
-    if ([o_main activeVideoPlayback] && &IOPMAssertionDeclareUserActivity && shouldDisableScreensaver)
-    {
-        CFStringRef reasonForActivity = CFStringCreateWithCString(kCFAllocatorDefault, _("VLC media playback"), kCFStringEncodingUTF8);
-        IOReturn success = IOPMAssertionDeclareUserActivity(reasonForActivity,
-                                                            kIOPMUserActiveLocal,
-                                                            &userActivityAssertionID);
-        CFRelease(reasonForActivity);
-
-        if (success != kIOReturnSuccess)
-            msg_Warn(getIntf(), "failed to declare user activity");
-
-    }
-
-    // Only set assertion if no previous / active assertion exist. This is necessary to keep
-    // audio only playback awake. If playback switched from video to audio or vice vesa, deactivate
-    // the other assertion and activate the needed assertion instead.
-    void(^activateAssertion)(CFStringRef, IOPMAssertionID*, IOPMAssertionID*) = ^void(CFStringRef assertionType, IOPMAssertionID* assertionIdRef, IOPMAssertionID* otherAssertionIdRef) {
-
-        if (*otherAssertionIdRef > 0) {
-            msg_Dbg(getIntf(), "Releasing old IOKit other assertion (%i)" , *otherAssertionIdRef);
-            IOPMAssertionRelease(*otherAssertionIdRef);
-            *otherAssertionIdRef = 0;
-        }
-
-        if (*assertionIdRef) {
-            msg_Dbg(getIntf(), "Continue to use IOKit assertion %s (%i)", [(__bridge NSString *)(assertionType) UTF8String], *assertionIdRef);
-            return;
-        }
-
-        CFStringRef reasonForActivity = CFStringCreateWithCString(kCFAllocatorDefault, _("VLC media playback"), kCFStringEncodingUTF8);
-
-        IOReturn success = IOPMAssertionCreateWithName(assertionType, kIOPMAssertionLevelOn, reasonForActivity, assertionIdRef);
-        CFRelease(reasonForActivity);
-
-        if (success == kIOReturnSuccess)
-            msg_Dbg(getIntf(), "Activated assertion %s through IOKit (%i)", [(__bridge NSString *)(assertionType) UTF8String], *assertionIdRef);
-        else
-            msg_Warn(getIntf(), "Failed to prevent system sleep through IOKit");
-    };
-
-    if ([o_main activeVideoPlayback] && shouldDisableScreensaver) {
-        activateAssertion(kIOPMAssertionTypeNoDisplaySleep, &monitorSleepAssertionID, &systemSleepAssertionID);
-    } else {
-        activateAssertion(kIOPMAssertionTypeNoIdleSleep, &systemSleepAssertionID, &monitorSleepAssertionID);
-    }
-
-}
-
-- (void)releaseSleepBlockers
-{
-    /* allow the system to sleep again */
-    if (systemSleepAssertionID > 0) {
-        msg_Dbg(getIntf(), "Releasing IOKit system sleep blocker (%i)" , systemSleepAssertionID);
-        IOPMAssertionRelease(systemSleepAssertionID);
-        systemSleepAssertionID = 0;
-    }
-
-    if (monitorSleepAssertionID > 0) {
-        msg_Dbg(getIntf(), "Releasing IOKit monitor sleep blocker (%i)" , monitorSleepAssertionID);
-        IOPMAssertionRelease(monitorSleepAssertionID);
-        monitorSleepAssertionID = 0;
-    }
-}
-
-- (void)updateMetaAndInfo
-{
-    if (!p_current_input) {
-        [[[VLCMain sharedInstance] currentMediaInfoPanel] updatePanelWithItem:nil];
-        return;
-    }
-
-    input_item_t *p_input_item = input_GetItem(p_current_input);
-
-    // FIXME: update metadata in playlist model if needed
-//    [[[o_main playlist] model] updateItem:p_input_item];
-    [[[VLCMain sharedInstance] currentMediaInfoPanel] updatePanelWithItem:p_input_item];
-
-    if (!p_input_item) {
-        return;
-    }
-
-    if (@available(macOS 10.12.2, *)) {
-        NSMutableDictionary *currentlyPlayingTrackInfo = [NSMutableDictionary dictionary];
-
-        currentlyPlayingTrackInfo[MPMediaItemPropertyPlaybackDuration] = @(SEC_FROM_VLC_TICK(input_item_GetDuration(p_input_item)));
-        currentlyPlayingTrackInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = @(var_GetInteger(p_current_input, "time"));
-        currentlyPlayingTrackInfo[MPNowPlayingInfoPropertyPlaybackRate] = @(var_GetFloat(p_current_input, "rate"));
-
-        char *psz_title = input_item_GetTitle(p_input_item);
-        if (!psz_title)
-            psz_title = input_item_GetName(p_input_item);
-        currentlyPlayingTrackInfo[MPMediaItemPropertyTitle] = toNSStr(psz_title);
-        FREENULL(psz_title);
-
-        char *psz_artist = input_item_GetArtist(p_input_item);
-        currentlyPlayingTrackInfo[MPMediaItemPropertyArtist] = toNSStr(psz_artist);
-        FREENULL(psz_artist);
-
-        char *psz_album = input_item_GetAlbum(p_input_item);
-        currentlyPlayingTrackInfo[MPMediaItemPropertyAlbumTitle] = toNSStr(psz_album);
-        FREENULL(psz_album);
-
-        char *psz_track_number = input_item_GetTrackNumber(p_input_item);
-        currentlyPlayingTrackInfo[MPMediaItemPropertyAlbumTrackNumber] = @([toNSStr(psz_track_number) intValue]);
-        FREENULL(psz_track_number);
-
-        [MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo = currentlyPlayingTrackInfo;
-    }
 }
 
 - (void)updateMainWindow
@@ -552,14 +283,6 @@ static int InputEvent(vlc_object_t *p_this, const char *psz_var,
 {
     [[o_main mainMenu] setupMenus];
     [[VLCCoreInteraction sharedInstance] resetAtoB];
-}
-
-- (void)sendDistributedNotificationWithUpdatedPlaybackStatus
-{
-    [[NSDistributedNotificationCenter defaultCenter] postNotificationName:@"VLCPlayerStateDidChange"
-                                                                   object:nil
-                                                                 userInfo:nil
-                                                       deliverImmediately:YES];
 }
 
 - (BOOL)hasInput

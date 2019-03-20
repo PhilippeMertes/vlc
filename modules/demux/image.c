@@ -28,6 +28,8 @@
 # include "config.h"
 #endif
 
+#include <assert.h>
+
 #include <vlc_common.h>
 #include <vlc_plugin.h>
 #include <vlc_demux.h>
@@ -428,8 +430,7 @@ static bool IsWebP(stream_t *s)
     if (memcmp(&header[8], "WEBPVP8 ", 8))
         return false;
     /* skip headers */
-    vlc_stream_Seek(s, 20);
-    return true;
+    return vlc_stream_Seek(s, 20) == 0;
 }
 
 static bool IsSpiff(stream_t *s)
@@ -556,10 +557,11 @@ static bool IsTarga(stream_t *s)
         return false;
 
     const uint8_t *footer;
-    bool is_targa = vlc_stream_Peek(s, &footer, 26) >= 26 &&
-                    !memcmp(&footer[8], "TRUEVISION-XFILE.\x00", 18);
-    vlc_stream_Seek(s, position);
-    return is_targa;
+    if (vlc_stream_Peek(s, &footer, 26) < 26
+     || memcmp(&footer[8], "TRUEVISION-XFILE.\x00", 18))
+        return false;
+
+    return vlc_stream_Seek(s, position) == 0;
 }
 
 typedef struct {
@@ -645,51 +647,61 @@ static const image_format_t formats[] = {
     { .codec = VLC_CODEC_TARGA,
       .detect = IsTarga,
     },
-    { .codec = 0 }
 };
+
+static vlc_fourcc_t Detect(stream_t *s)
+{
+    const uint8_t *peek;
+    size_t peek_size = 0;
+
+    for (size_t i = 0; i < ARRAY_SIZE(formats); i++) {
+        const image_format_t *img = &formats[i];
+
+        if (img->detect != NULL) {
+            if (img->detect(s))
+                return img->codec;
+
+            if (vlc_stream_Seek(s, 0))
+               return 0;
+
+            /* Seeking invalidates the current peek buffer */
+            peek_size = 0;
+            continue;
+        }
+
+        if (peek_size < img->marker_size) {
+            ssize_t val = vlc_stream_Peek(s, &peek, img->marker_size);
+            if (val < 0)
+                continue;
+        }
+
+        assert(img->marker_size > 0); /* ensure peek is a valid pointer */
+
+        if (peek_size >= img->marker_size
+         && memcmp(peek, img->marker, img->marker_size) == 0)
+            return img->codec;
+    }
+    return 0;
+}
 
 static int Open(vlc_object_t *object)
 {
     demux_t *demux = (demux_t*)object;
 
     /* Detect the image type */
-    const image_format_t *img;
+    vlc_fourcc_t codec = Detect(demux->s);
+    if (codec == 0)
+        return VLC_EGENERIC;
 
-    const uint8_t *peek;
-    ssize_t peek_size = 0;
-    for (int i = 0; ; i++) {
-        img = &formats[i];
-        if (!img->codec)
-            return VLC_EGENERIC;
-
-        if (img->detect) {
-            if (img->detect(demux->s))
-                break;
-            /* detect callbacks can invalidate the current peek buffer */
-            peek_size = 0;
-        } else {
-            if ((size_t) peek_size < img->marker_size)
-            {
-                peek_size = vlc_stream_Peek(demux->s, &peek, img->marker_size);
-                if (peek_size == -1)
-                    return VLC_ENOMEM;
-            }
-            if ((size_t) peek_size >= img->marker_size &&
-                !memcmp(peek, img->marker, img->marker_size))
-                break;
-        }
-    }
     msg_Dbg(demux, "Detected image: %s",
-            vlc_fourcc_GetDescription(VIDEO_ES, img->codec));
+            vlc_fourcc_GetDescription(VIDEO_ES, codec));
 
-    if( img->codec == VLC_CODEC_MXPEG )
-    {
+    if (codec == VLC_CODEC_MXPEG)
         return VLC_EGENERIC; //let avformat demux this file
-    }
 
     /* Load and if selected decode */
     es_format_t fmt;
-    es_format_Init(&fmt, VIDEO_ES, img->codec);
+    es_format_Init(&fmt, VIDEO_ES, codec);
     fmt.video.i_chroma = fmt.i_codec;
 
     block_t *data = Load(demux);

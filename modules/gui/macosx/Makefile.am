@@ -42,7 +42,6 @@ libmacosx_plugin_la_SOURCES = \
 	gui/macosx/extensions/NSString+Helpers.m \
 	gui/macosx/extensions/VLCHexNumberFormatter.h \
 	gui/macosx/extensions/VLCHexNumberFormatter.m \
-	gui/macosx/extensions/helpers.h \
 	gui/macosx/extensions/misc.h \
 	gui/macosx/extensions/misc.m \
 	gui/macosx/imported/AppleRemote/AppleRemote.h \
@@ -103,8 +102,8 @@ libmacosx_plugin_la_SOURCES = \
 	gui/macosx/panels/VLCAudioEffectsWindowController.m \
 	gui/macosx/panels/VLCBookmarksWindowController.h \
 	gui/macosx/panels/VLCBookmarksWindowController.m \
-	gui/macosx/panels/VLCPlaylistInfo.h \
-	gui/macosx/panels/VLCPlaylistInfo.m \
+	gui/macosx/panels/VLCInformationWindowController.h \
+	gui/macosx/panels/VLCInformationWindowController.m \
 	gui/macosx/panels/VLCTimeSelectionPanelController.h \
 	gui/macosx/panels/VLCTimeSelectionPanelController.m \
 	gui/macosx/panels/VLCTrackSynchronizationWindowController.h \

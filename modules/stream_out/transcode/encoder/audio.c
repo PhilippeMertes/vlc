@@ -164,7 +164,7 @@ int transcode_encoder_audio_test( vlc_object_t *p_obj,
     {
         es_format_Clean( &p_encoder->fmt_in );
         es_format_Clean( &p_encoder->fmt_out );
-        vlc_object_release( p_encoder );
+        vlc_object_delete(p_encoder);
         return VLC_EGENERIC;
     }
 
@@ -191,13 +191,15 @@ int transcode_encoder_audio_test( vlc_object_t *p_obj,
         module_unneed( p_encoder, p_module );
     }
 
+    p_encoder->fmt_in.audio.i_format = p_encoder->fmt_in.i_codec;
+
     /* copy our requested format */
     es_format_Copy( p_enc_wanted_in, &p_encoder->fmt_in );
 
     es_format_Clean( &p_encoder->fmt_in );
     es_format_Clean( &p_encoder->fmt_out );
 
-    vlc_object_release( p_encoder );
+    vlc_object_delete(p_encoder);
 
     return p_module != NULL ? VLC_SUCCESS : VLC_EGENERIC;
 }

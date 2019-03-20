@@ -28,12 +28,14 @@
 #import <vlc_plugin.h>
 #import <vlc_actions.h>
 
+#import <vlc_playlist_legacy.h>
+
 #import "main/VLCMain.h"
 #import "coreinteraction/VLCClickerManager.h"
 #import "playlist/VLCPlaylistController.h"
+#import "playlist/VLCPlayerController.h"
 #import "playlist/VLCPlaylistModel.h"
 #import "windows/VLCOpenWindowController.h"
-
 
 static int BossCallback(vlc_object_t *p_this, const char *psz_var,
                         vlc_value_t oldval, vlc_value_t new_val, void *param)
@@ -50,7 +52,7 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
 
 @interface VLCCoreInteraction ()
 {
-    int i_currentPlaybackRate;
+    float f_currentPlaybackRate;
     vlc_tick_t timeA, timeB;
 
     float f_maxVolume;
@@ -59,6 +61,7 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
 
     VLCClickerManager *_clickerManager;
     VLCPlaylistController *_playlistController;
+    VLCPlayerController *_playerController;
 }
 @end
 
@@ -92,6 +95,7 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
 
         _clickerManager = [[VLCClickerManager alloc] init];
         _playlistController = [[VLCMain sharedInstance] playlistController];
+        _playerController = [_playlistController playerController];
 
         var_AddCallback(pl_Get(p_intf), "intf-boss", BossCallback, (__bridge void *)self);
     }
@@ -117,18 +121,16 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
 
 - (void)playOrPause
 {
-    input_thread_t *p_input = pl_CurrentInput(getIntf());
-    playlist_t *p_playlist = pl_Get(getIntf());
+    input_item_t *p_input_item = _playlistController.currentlyPlayingInputItem;
 
-    if (p_input) {
-        playlist_TogglePause(p_playlist);
-        vlc_object_release(p_input);
+    if (p_input_item) {
+        [_playerController togglePlayPause];
+        input_item_Release(p_input_item);
     } else {
-        VLCMain *mainInstance = [VLCMain sharedInstance];
-        if (mainInstance.playlistController.playlistModel.numberOfPlaylistItems == 0)
-            [[mainInstance open] openFileGeneric];
+        if (_playlistController.playlistModel.numberOfPlaylistItems == 0)
+            [[[VLCMain sharedInstance] open] openFileGeneric];
         else
-            [mainInstance.playlistController startPlaylist];
+            [_playlistController startPlaylist];
     }
 }
 
@@ -167,7 +169,7 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
     p_input = pl_CurrentInput(p_intf);
     if (p_input) {
         var_ToggleBool(p_input, "record");
-        vlc_object_release(p_input);
+        input_Release(p_input);
     }
 }
 
@@ -176,10 +178,9 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
     playlist_t * p_playlist = pl_Get(getIntf());
 
     double speed = pow(2, (double)i_value / 17);
-    int rate = INPUT_RATE_DEFAULT / speed;
-    if (i_currentPlaybackRate != rate)
-        var_SetFloat(p_playlist, "rate", (float)INPUT_RATE_DEFAULT / (float)rate);
-    i_currentPlaybackRate = rate;
+    if (f_currentPlaybackRate != speed)
+        var_SetFloat(p_playlist, "rate", speed);
+    f_currentPlaybackRate = speed;
 }
 
 - (int)playbackRate
@@ -194,11 +195,12 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
     p_input = pl_CurrentInput(p_intf);
     if (p_input) {
         f_rate = var_GetFloat(p_input, "rate");
-        vlc_object_release(p_input);
+        input_Release(p_input);
     } else {
         playlist_t * p_playlist = pl_Get(getIntf());
         f_rate = var_GetFloat(p_playlist, "rate");
     }
+    f_currentPlaybackRate = f_rate;
 
     double value = 17 * log(f_rate) / log(2.);
     int returnValue = (int) ((value > 0) ? value + .5 : value - .5);
@@ -208,7 +210,6 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
     else if (returnValue > 34)
         returnValue = 34;
 
-    i_currentPlaybackRate = returnValue;
     return returnValue;
 }
 
@@ -234,7 +235,7 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
         return -1;
 
     i_duration = var_GetInteger(p_input, "length");
-    vlc_object_release(p_input);
+    input_Release(p_input);
 
     return SEC_FROM_VLC_TICK(i_duration);
 }
@@ -251,20 +252,20 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
 
     input_item_t *p_item = input_GetItem(p_input);
     if (!p_item) {
-        vlc_object_release(p_input);
+        input_Release(p_input);
         return nil;
     }
 
     char *psz_uri = input_item_GetURI(p_item);
     if (!psz_uri) {
-        vlc_object_release(p_input);
+        input_Release(p_input);
         return nil;
     }
 
     NSURL *o_url;
     o_url = [NSURL URLWithString:toNSStr(psz_uri)];
     free(psz_uri);
-    vlc_object_release(p_input);
+    input_Release(p_input);
 
     return o_url;
 }
@@ -281,13 +282,13 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
 
     input_item_t *p_item = input_GetItem(p_input);
     if (!p_item) {
-        vlc_object_release(p_input);
+        input_Release(p_input);
         return nil;
     }
 
     char *psz_uri = input_item_GetURI(p_item);
     if (!psz_uri) {
-        vlc_object_release(p_input);
+        input_Release(p_input);
         return nil;
     }
 
@@ -309,7 +310,7 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
         else
             o_name = [o_url absoluteString];
     }
-    vlc_object_release(p_input);
+    input_Release(p_input);
     return o_name;
 }
 
@@ -326,7 +327,7 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
             val = val * -1;
         var_SetInteger( p_input, "time-offset", val );
     }
-    vlc_object_release(p_input);
+    input_Release(p_input);
 }
 
 - (void)forwardExtraShort
@@ -380,7 +381,7 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
     }
     config_PutInt("random", on);
 
-    vout_thread_t *p_vout = getVout();
+    vout_thread_t *p_vout = [_playerController mainVideoOutputThread];
     if (!p_vout) {
         return;
     }
@@ -390,17 +391,17 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
         vout_OSDMessage(p_vout, VOUT_SPU_CHANNEL_OSD, "%s", _("Random Off"));
     }
 
-    vlc_object_release(p_vout);
+    vout_Release(p_vout);
 }
 
 - (void)repeatAll
 {
     _playlistController.playbackRepeat = VLC_PLAYLIST_PLAYBACK_REPEAT_ALL;
 
-    vout_thread_t *p_vout = getVout();
+    vout_thread_t *p_vout = [_playerController mainVideoOutputThread];
     if (p_vout) {
         vout_OSDMessage(p_vout, VOUT_SPU_CHANNEL_OSD, "%s", _("Repeat All"));
-        vlc_object_release(p_vout);
+        vout_Release(p_vout);
     }
 }
 
@@ -408,10 +409,10 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
 {
     _playlistController.playbackRepeat = VLC_PLAYLIST_PLAYBACK_REPEAT_CURRENT;
 
-    vout_thread_t *p_vout = getVout();
+    vout_thread_t *p_vout = [_playerController mainVideoOutputThread];
     if (p_vout) {
         vout_OSDMessage(p_vout, VOUT_SPU_CHANNEL_OSD, "%s", _("Repeat One"));
-        vlc_object_release(p_vout);
+        vout_Release(p_vout);
     }
 }
 
@@ -419,10 +420,10 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
 {
     _playlistController.playbackRepeat = VLC_PLAYLIST_PLAYBACK_REPEAT_NONE;
 
-    vout_thread_t *p_vout = getVout();
+    vout_thread_t *p_vout = [_playerController mainVideoOutputThread];
     if (p_vout) {
         vout_OSDMessage(p_vout, VOUT_SPU_CHANNEL_OSD, "%s", _("Repeat Off"));
-        vlc_object_release(p_vout);
+        vout_Release(p_vout);
     }
 }
 
@@ -434,7 +435,7 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
             msg_Dbg(getIntf(), "Setting A value");
 
             timeA = var_GetInteger(p_input, "time");
-            vlc_object_release(p_input);
+            input_Release(p_input);
         }
     } else if (!timeB) {
         input_thread_t * p_input = pl_CurrentInput(getIntf());
@@ -442,7 +443,7 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
             msg_Dbg(getIntf(), "Setting B value");
 
             timeB = var_GetInteger(p_input, "time");
-            vlc_object_release(p_input);
+            input_Release(p_input);
         }
     } else
         [self resetAtoB];
@@ -463,7 +464,7 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
             vlc_tick_t currentTime = var_GetInteger(p_input, "time");
             if ( currentTime >= timeB || currentTime < timeA)
                 var_SetInteger(p_input, "time", timeA);
-            vlc_object_release(p_input);
+            input_Release(p_input);
         }
     }
 }
@@ -473,7 +474,7 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
     input_thread_t * p_input = pl_CurrentInput(getIntf());
     if (p_input) {
         var_SetInteger(p_input, "time", time);
-        vlc_object_release(p_input);
+        input_Release(p_input);
     }
 }
 
@@ -568,19 +569,15 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
             msg_Err(getIntf(), "unable to load subtitles from '%s'", mrl);
         free(mrl);
     }
-    vlc_object_release(p_input);
+    input_Release(p_input);
 }
 
 - (void)showPosition
 {
-    input_thread_t *p_input = pl_CurrentInput(getIntf());
-    if (p_input != NULL) {
-        vout_thread_t *p_vout = input_GetVout(p_input);
-        if (p_vout != NULL) {
-            var_SetInteger(getIntf()->obj.libvlc, "key-action", ACTIONID_POSITION);
-            vlc_object_release(p_vout);
-        }
-        vlc_object_release(p_input);
+    vout_thread_t *p_vout = [_playerController mainVideoOutputThread];
+    if (p_vout != NULL) {
+        var_SetInteger(vlc_object_instance(getIntf()), "key-action", ACTIONID_POSITION);
+        vout_Release(p_vout);
     }
 }
 
@@ -602,11 +599,11 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
     if (!p_intf)
         return;
 
-    vout_thread_t *p_vout = getVoutForActiveWindow();
+    vout_thread_t *p_vout = [[[[VLCMain sharedInstance] playlistController] playerController] videoOutputThreadForKeyWindow];
     if (p_vout) {
         BOOL b_fs = var_ToggleBool(p_vout, "fullscreen");
         var_SetBool(pl_Get(p_intf), "fullscreen", b_fs);
-        vlc_object_release(p_vout);
+        vout_Release(p_vout);
     } else { // e.g. lion fullscreen toggle
         BOOL b_fs = var_ToggleBool(pl_Get(p_intf), "fullscreen");
         [[[VLCMain sharedInstance] voutProvider] setFullscreen:b_fs forWindow:nil withAnimation:YES];
@@ -621,7 +618,7 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
         return;
 
     input_Control(p_input_thread, INPUT_NAV_ACTIVATE, NULL );
-    vlc_object_release(p_input_thread);
+    input_Release(p_input_thread);
 }
 
 - (void)moveMenuFocusLeft
@@ -631,7 +628,7 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
         return;
 
     input_Control(p_input_thread, INPUT_NAV_LEFT, NULL );
-    vlc_object_release(p_input_thread);
+    input_Release(p_input_thread);
 }
 
 - (void)moveMenuFocusRight
@@ -641,7 +638,7 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
         return;
 
     input_Control(p_input_thread, INPUT_NAV_RIGHT, NULL );
-    vlc_object_release(p_input_thread);
+    input_Release(p_input_thread);
 }
 
 - (void)moveMenuFocusUp
@@ -651,7 +648,7 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
         return;
 
     input_Control(p_input_thread, INPUT_NAV_UP, NULL );
-    vlc_object_release(p_input_thread);
+    input_Release(p_input_thread);
 }
 
 - (void)moveMenuFocusDown
@@ -661,7 +658,7 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
         return;
 
     input_Control(p_input_thread, INPUT_NAV_DOWN, NULL );
-    vlc_object_release(p_input_thread);
+    input_Release(p_input_thread);
 }
 
 #pragma mark -
@@ -681,21 +678,16 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
         unichar key = [characters characterAtIndex: 0];
 
         if (key) {
-            input_thread_t * p_input = pl_CurrentInput(getIntf());
-            if (p_input != NULL) {
-                vout_thread_t *p_vout = input_GetVout(p_input);
-
-                if (p_vout != NULL) {
-                    /* Escape */
-                    if (key == (unichar) 0x1b) {
-                        if (var_GetBool(p_vout, "fullscreen")) {
-                            [self toggleFullscreen];
-                            eventHandled = YES;
-                        }
+            vout_thread_t *p_vout = [_playerController mainVideoOutputThread];
+            if (p_vout != NULL) {
+                /* Escape */
+                if (key == (unichar) 0x1b) {
+                    if (var_GetBool(p_vout, "fullscreen")) {
+                        [self toggleFullscreen];
+                        eventHandled = YES;
                     }
-                    vlc_object_release(p_vout);
                 }
-                vlc_object_release(p_input);
+                vout_Release(p_vout);
             }
         }
     }
@@ -770,7 +762,7 @@ static int BossCallback(vlc_object_t *p_this, const char *psz_var,
         }
 
         if (b_found_key) {
-            var_SetInteger(p_intf->obj.libvlc, "key-pressed", val.i_int);
+            var_SetInteger(vlc_object_instance(p_intf), "key-pressed", val.i_int);
             return YES;
         }
     }

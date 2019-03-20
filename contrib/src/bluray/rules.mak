@@ -1,10 +1,12 @@
 # LIBBLURAY
 
-BLURAY_VERSION := 1.0.2
+BLURAY_VERSION := 1.1.0
 BLURAY_URL := $(VIDEOLAN)/libbluray/$(BLURAY_VERSION)/libbluray-$(BLURAY_VERSION).tar.bz2
 
 ifdef BUILD_DISCS
+ifndef HAVE_WINSTORE
 PKGS += bluray
+endif
 endif
 ifeq ($(call need_pkg,"libbluray >= 0.7.0"),)
 PKGS_FOUND += bluray
@@ -48,11 +50,9 @@ $(TARBALLS)/libbluray-$(BLURAY_VERSION).tar.bz2:
 
 bluray: libbluray-$(BLURAY_VERSION).tar.bz2 .sum-bluray
 	$(UNPACK)
-	$(APPLY) $(SRC)/bluray/0001-Implement-dl_get_path-for-darwin-macOS.patch
 	$(APPLY) $(SRC)/bluray/0001-keep-on-with-menuless-user-selected-streams-between-.patch
 	$(APPLY) $(SRC)/bluray/0001-install-bdjo_data-header.patch
 	$(APPLY) $(SRC)/bluray/0001-library-paths-Explicitly-add-usr-local-lib.patch
-	$(APPLY) $(SRC)/bluray/0001-improve-main-playlist-guess.patch
 	$(call pkg_static,"src/libbluray.pc.in")
 	$(MOVE)
 

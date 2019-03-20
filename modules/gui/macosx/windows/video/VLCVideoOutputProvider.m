@@ -24,6 +24,7 @@
 #import "VLCVideoOutputProvider.h"
 
 #include <vlc_vout_display.h>
+#import <vlc_playlist_legacy.h>
 
 #import "extensions/NSScreen+VLCAdditions.h"
 
@@ -36,7 +37,7 @@
 #import "panels/dialogs/VLCResumeDialogController.h"
 #import "panels/VLCVideoEffectsWindowController.h"
 #import "panels/VLCAudioEffectsWindowController.h"
-#import "panels/VLCPlaylistInfo.h"
+#import "panels/VLCInformationWindowController.h"
 #import "panels/VLCBookmarksWindowController.h"
 #import "panels/VLCTrackSynchronizationWindowController.h"
 
@@ -340,7 +341,7 @@ int WindowOpen(vout_window_t *p_wnd)
 
     [newVideoWindow setAlphaValue: config_GetFloat("macosx-opaqueness")];
 
-    [voutView setVoutThread:(vout_thread_t *)p_wnd->obj.parent];
+    [voutView setVoutThread:(vout_thread_t *)vlc_object_parent(p_wnd)];
     [newVideoWindow setHasActiveVideo: YES];
     [voutWindows setObject:newVideoWindow forKey:[NSValue valueWithPointer:p_wnd]];
 
@@ -367,7 +368,7 @@ int WindowOpen(vout_window_t *p_wnd)
 
         // this is not set when we start in fullscreen because of
         // fullscreen settings in video prefs the second time
-        var_SetBool(p_wnd->obj.parent, "fullscreen", 1);
+        var_SetBool(vlc_object_parent(p_wnd), "fullscreen", 1);
 
         [self setFullscreen:1 forWindow:p_wnd withAnimation:NO];
     }
@@ -511,7 +512,7 @@ int WindowOpen(vout_window_t *p_wnd)
 
             }
             if (p_input)
-                vlc_object_release(p_input);
+                input_Release(p_input);
         } else {
             // leaving fullscreen is always allowed
             [o_current_window leaveFullscreenWithAnimation:YES];

@@ -182,7 +182,7 @@ static int Create( vlc_object_t *p_this )
     {
         msg_Err( p_filter, "can't open internal opencv filter: %s", p_sys->psz_inner_name );
         free( p_sys->psz_inner_name );
-        vlc_object_release( p_sys->p_opencv );
+        vlc_object_delete(p_sys->p_opencv);
         free( p_sys );
 
         return VLC_ENOMOD;
@@ -268,7 +268,7 @@ static void Destroy( vlc_object_t *p_this )
 
     // Release the internal OpenCV filter.
     module_unneed( p_sys->p_opencv, p_sys->p_opencv->p_module );
-    vlc_object_release( p_sys->p_opencv );
+    vlc_object_delete(p_sys->p_opencv);
 
     free( p_sys );
 }
@@ -351,7 +351,6 @@ static void VlcPictureToIplImage( filter_t* p_filter, picture_t* p_in )
             return;
         }
 
-        p_sys->p_to_be_freed = p_sys->p_proc_image;    //remember this so we can free it later
 
     }
     else    //((p_sys->f_scale != 1) || (p_sys->i_internal_chroma != CINPUT))
@@ -361,8 +360,8 @@ static void VlcPictureToIplImage( filter_t* p_filter, picture_t* p_in )
         // image filtering) and picture leaking.
         p_sys->p_proc_image = filter_NewPicture( p_filter ); //p_in
         picture_Copy( p_sys->p_proc_image, p_in );
-        p_sys->p_to_be_freed = p_sys->p_proc_image;
     }
+    p_sys->p_to_be_freed = p_sys->p_proc_image;    //remember this so we can free it later
 
     //Convert to the IplImage array that is to be processed.
     //If there are multiple planes in p_sys->p_proc_image, then 1 IplImage

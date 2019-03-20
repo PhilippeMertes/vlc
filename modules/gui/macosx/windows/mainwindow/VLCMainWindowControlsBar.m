@@ -31,6 +31,7 @@
 #import "menus/VLCMainMenu.h"
 #import "windows/mainwindow/VLCMainWindowControlsBar.h"
 
+#import <vlc_playlist_legacy.h>
 
 /*****************************************************************************
  * VLCMainWindowControlsBar
@@ -426,7 +427,7 @@
         /* chapters & titles */
         //FIXME! b_chapters = p_input->stream.i_area_nb > 1;
 
-        vlc_object_release(p_input);
+        input_Release(p_input);
     }
 
     [self.stopButton setEnabled: b_input];

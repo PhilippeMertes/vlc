@@ -24,11 +24,9 @@
 #import "VLCStatusBarIcon.h"
 
 #import <vlc_common.h>
-#import <vlc_playlist_legacy.h>
 #import <vlc_input.h>
 #import <vlc_url.h>
 
-#import "coreinteraction/VLCCoreInteraction.h"
 #import "extensions/NSString+Helpers.h"
 #import "main/VLCMain.h"
 #import "playlist/VLCPlaylistController.h"
@@ -148,7 +146,7 @@
     }
 }
 
-- (void)configurationChanged:(id)obj
+- (void)configurationChanged:(NSNotification *)aNotification
 {
     if (var_InheritBool(getIntf(), "macosx-statusicon"))
         [self enableMenuIcon];

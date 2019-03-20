@@ -63,6 +63,11 @@ static const int kCurrentPreferencesVersion = 4;
     NSUserDefaults * defaults = [NSUserDefaults standardUserDefaults];
     NSInteger version = [defaults integerForKey:kVLCPreferencesVersion];
 
+    // This was set in user defaults in VLC 2.0.x (preferences version 2), overriding any
+    // value in the Info.plist. Make sure to delete it here, always,
+    // as it could be set if an old version of VLC is launched again.
+    [defaults removeObjectForKey:@"SUFeedURL"];
+
     /*
      * Store version explicitely in file, for ease of debugging.
      * Otherwise, the value will be just defined at app startup,
@@ -88,24 +93,16 @@ static const int kCurrentPreferencesVersion = 4;
     } else if (version == 3) {
         /* version 4 (introduced in 3.0.0) adds RTL settings depending on stored language */
         [defaults setInteger:kCurrentPreferencesVersion forKey:kVLCPreferencesVersion];
-        BOOL hasUpdated = [VLCSimplePrefsController updateRightToLeftSettings];
+        [VLCSimplePrefsController updateRightToLeftSettings];
         [defaults synchronize];
 
         // In VLC 2.2.x, config for filters was fully controlled by audio and video effects panel.
         // In VLC 3.0, this is no longer the case and VLCs config is not touched anymore. Therefore,
         // disable filter in VLCs config in this transition.
-        playlist_t *p_playlist = pl_Get(getIntf());
-        var_SetString(p_playlist, "audio-filter", "");
-        var_SetString(p_playlist, "video-filter", "");
 
         config_PutPsz("audio-filter", "");
         config_PutPsz("video-filter", "");
         config_SaveConfigFile(getIntf());
-
-        // This migration only has effect rarely, therefore only restart then
-        if (!hasUpdated)
-            return;
-
     } else {
         NSArray *libraries = NSSearchPathForDirectoriesInDomains(NSLibraryDirectory,
                                                                  NSUserDomainMask, YES);

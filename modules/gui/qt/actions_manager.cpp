@@ -34,7 +34,6 @@
 #include "main_interface.hpp"        /* Show playlist */
 #include "components/controller.hpp" /* Toggle FSC controller width */
 #include "components/extended_panels.hpp"
-#include "menus.hpp"
 
 ActionsManager::ActionsManager( intf_thread_t * _p_i )
     : p_intf( _p_i )
@@ -127,7 +126,7 @@ void ActionsManager::fullscreen()
     if( p_vout)
     {
         var_SetBool( p_vout, "fullscreen", fs );
-        vlc_object_release( p_vout );
+        vout_Release(p_vout);
     }
 }
 
@@ -137,7 +136,7 @@ void ActionsManager::snapshot()
     if( p_vout )
     {
         var_TriggerCallback( p_vout, "video-snapshot" );
-        vlc_object_release( p_vout );
+        vout_Release(p_vout);
     }
 }
 

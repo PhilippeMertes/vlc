@@ -31,6 +31,8 @@
 #import "playlist/VLCPlaylistController.h"
 #import "playlist/VLCPlayerController.h"
 
+#import <vlc_playlist_legacy.h>
+
 /*****************************************************************************
  * VLCControlsBarCommon
  *
@@ -340,7 +342,7 @@
         /* chapters & titles */
         //FIXME! b_chapters = p_input->stream.i_area_nb > 1;
 
-        vlc_object_release(p_input);
+        input_Release(p_input);
     }
 
     [self.timeSlider setEnabled: b_seekable];

@@ -25,6 +25,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class VLCInputStats;
+
 extern NSString *VLCPlayerCurrentMediaItem;
 /**
  * Listen to VLCPlayerCurrentMediaItemChanged to notified if the current media item changes for the player
@@ -79,6 +81,18 @@ extern NSString *VLCPlayerTimeAndPositionChanged;
 extern NSString *VLCPlayerLengthChanged;
 
 /**
+ * Listen to VLCPlayerTitleSelectionChanged to be notified if the selected title of the current media changes
+ * @note the affected player object will be the object of the notification
+ */
+extern NSString *VLCPlayerTitleSelectionChanged;
+
+/**
+ * Listen to VLCPlayerTitleListChanged to be notified if the list of titles of the current media changes
+ * @note the affected player object will be the object of the notification
+ */
+extern NSString *VLCPlayerTitleListChanged;
+
+/**
  * Listen to VLCPlayerTeletextMenuAvailable to be notified if a teletext menu becomes (un-)available
  * @note the affected player object will be the object of the notification
  */
@@ -121,10 +135,30 @@ extern NSString *VLCPlayerSubtitlesDelayChanged;
 extern NSString *VLCPlayerRecordingChanged;
 
 /**
+ * Listen to VLCPlayerRendererChanged to be notified if the renderer (such as a Chromecast device) changes
+ * @note the affected playser object will be the obejct of the notification
+ */
+extern NSString *VLCPlayerRendererChanged;
+
+extern NSString *VLCPlayerInputStats;
+/**
+ * Listen to VLCPlayerStatisticsUpdated to be notified if the playback statistics state of the current media update
+ * @note the affected player object will be the object of the notification
+ * @note the userInfo dictionary will have an instance of VLCInputStats for key VLCPlayerInputStats representating the new state
+ */
+extern NSString *VLCPlayerStatisticsUpdated;
+
+/**
  * Listen to VLCPlayerFullscreenChanged to be notified whether the fullscreen state of the video output changes
  * @note the affected player object will be the object of the notification
  */
 extern NSString *VLCPlayerFullscreenChanged;
+
+/**
+ * Listen to VLCPlayerListOfVideoOutputThreadsChanged to be notified when a video output thread was added or removed
+ * @note the affected player object will be the object of the notification
+ */
+extern NSString *VLCPlayerListOfVideoOutputThreadsChanged;
 
 /**
  * Listen to VLCPlayerWallpaperModeChanged to be notified whether the fullscreen state of the video output changes
@@ -170,6 +204,11 @@ extern NSString *VLCPlayerMuteChanged;
  * Resume the current playback
  */
 - (void)resume;
+
+/**
+ * Convinience method to either start or pause playback
+ */
+- (void)togglePlayPause;
 
 /**
  * Stop the current playback
@@ -370,6 +409,30 @@ extern NSString *VLCPlayerMuteChanged;
 @property (readonly) vlc_tick_t length;
 
 /**
+ * set/get the currently selected title
+ * @note listen to VLCPlayerTitleSelectionChanged to be notified about changes to this property
+ */
+@property (readwrite, nonatomic) size_t selectedTitleIndex;
+
+/**
+ * convinience method to get the current title
+ * @note this may return NULL if there is no title
+ */
+- (const struct vlc_player_title * _Nullable)selectedTitle;
+
+/**
+ * get the number of titles available for the currently playing media item
+ * @note listen to VLCPlayerTitleListChanged to be notified about changes to this property
+ */
+@property (readonly) size_t numberOfTitlesOfCurrentMedia;
+
+/**
+ * get a vlc_player_title by the index
+ * @note listen to VLCPlayerTitleListChanged in case the list changes so previous indexes will no longer be valid anymore
+ */
+- (const struct vlc_player_title *)titleAtIndexForCurrentMedia:(size_t)index;
+
+/**
  * exposes whether a teletext menu is available or not
  * @note listen to VLCPlayerTeletextMenuAvailable to be notified about changes to this property
  */
@@ -433,7 +496,43 @@ extern NSString *VLCPlayerMuteChanged;
  */
 - (void)toggleRecord;
 
+/**
+ * set / get the renderer for the current player
+ * @warning the returned vlc_renderer_item_t * must be released with vlc_renderer_item_release().
+ * @note listen to VLCPlayerRendererChanged to be notified about changes
+ */
+@property (readwrite, nonatomic, nullable) vlc_renderer_item_t *rendererItem;
+
+/**
+ * the latest available playback statistics
+ * @return an instance of VLCInputStats holding the data
+ * @note listen to VLCPlayerStatisticsUpdated to be notified about changes to this property
+ */
+@property (readonly) VLCInputStats *statistics;
+
 #pragma mark - video output properties
+
+/**
+ * the main video output thread
+ * @warning the returned vout_thread_t * must be released with vout_Release().
+ * @note listen to VLCPlayerListOfVideoOutputThreadsChanged to be notified about changes
+ * @return the current video output thread or NULL if there is none
+ */
+@property (readonly, nullable) vout_thread_t *mainVideoOutputThread;
+
+/**
+ * the video output embedded in the current key window
+ * @warning the returned vout_thread_t * must be released with vout_Release().
+ * @return the current video output thread for the key window or the main video output thread or NULL if there is none
+ */
+@property (readonly, nullable) vout_thread_t *videoOutputThreadForKeyWindow;
+
+/**
+ * an array holding all current video output threads
+ * @warning the returned vout_thread_t * instances must be individually released with vout_Release().
+ * @note listen to VLCPlayerListOfVideoOutputThreadsChanged to be notified about changes
+ */
+@property (readonly, nullable, copy) NSArray<NSValue *> *allVideoOutputThreads;
 
 /**
  * indicates whether video is displayed in fullscreen or shall to
@@ -486,6 +585,41 @@ extern NSString *VLCPlayerMuteChanged;
  * helper function to inverse the current mute state
  */
 - (void)toggleMute;
+
+/**
+ * the main audio output thread
+ * @warning the returned vout_thread_t * must be released with aout_Release().
+ * @return the current audio output instance or NULL if there is none
+ */
+@property (readonly, nullable) audio_output_t *mainAudioOutput;
+
+@end
+
+@interface VLCInputStats : NSObject
+
+/* Input */
+@property (readwrite) int64_t inputReadPackets;
+@property (readwrite) int64_t inputReadBytes;
+@property (readwrite) float inputBitrate;
+
+/* Demux */
+@property (readwrite) int64_t demuxReadPackets;
+@property (readwrite) int64_t demuxReadBytes;
+@property (readwrite) float demuxBitrate;
+@property (readwrite) int64_t demuxCorrupted;
+@property (readwrite) int64_t demuxDiscontinuity;
+
+/* Decoders */
+@property (readwrite) int64_t decodedAudio;
+@property (readwrite) int64_t decodedVideo;
+
+/* Vout */
+@property (readwrite) int64_t displayedPictures;
+@property (readwrite) int64_t lostPictures;
+
+/* Aout */
+@property (readwrite) int64_t playedAudioBuffers;
+@property (readwrite) int64_t lostAudioBuffers;
 
 @end
 

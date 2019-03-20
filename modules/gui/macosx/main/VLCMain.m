@@ -1,7 +1,7 @@
 /*****************************************************************************
  * VLCMain.m: MacOS X interface module
  *****************************************************************************
- * Copyright (C) 2002-2016 VLC authors and VideoLAN
+ * Copyright (C) 2002-2019 VLC authors and VideoLAN
  *
  * Authors: Derk-Jan Hartman <hartman at videolan.org>
  *          Felix Paul Kühne <fkuehne at videolan dot org>
@@ -57,11 +57,13 @@
 #import "panels/dialogs/VLCCoreDialogProvider.h"
 #import "panels/VLCAudioEffectsWindowController.h"
 #import "panels/VLCBookmarksWindowController.h"
-#import "panels/VLCPlaylistInfo.h"
+#import "panels/VLCInformationWindowController.h"
 #import "panels/VLCVideoEffectsWindowController.h"
 #import "panels/VLCTrackSynchronizationWindowController.h"
 
 #import "playlist/VLCPlaylistController.h"
+#import "playlist/VLCPlayerController.h"
+#import "playlist/VLCPlaylistModel.h"
 
 #import "preferences/prefs.h"
 #import "preferences/VLCSimplePrefsController.h"
@@ -72,7 +74,6 @@
 #import "windows/VLCOpenWindowController.h"
 #import "windows/VLCOpenInputMetadata.h"
 #import "windows/video/VLCVoutView.h"
-
 
 #ifdef HAVE_SPARKLE
 #import <Sparkle/Sparkle.h>                 /* we're the update delegate */
@@ -142,13 +143,12 @@ static int ShowController(vlc_object_t *p_this, const char *psz_variable,
 
             intf_thread_t * p_intf = getIntf();
             if (p_intf) {
-                playlist_t * p_playlist = pl_Get(p_intf);
-                BOOL b_fullscreen = var_GetBool(p_playlist, "fullscreen");
-                if (b_fullscreen)
-                    [[VLCMain sharedInstance] showFullscreenController];
+                VLCMain *mainInstance = [VLCMain sharedInstance];
+                if ([[[mainInstance playlistController] playerController] fullscreen])
+                    [mainInstance showFullscreenController];
 
                 else if (!strcmp(psz_variable, "intf-show"))
-                    [[[VLCMain sharedInstance] mainWindow] makeKeyAndOrderFront:nil];
+                    [[mainInstance mainWindow] makeKeyAndOrderFront:nil];
             }
 
         });
@@ -186,7 +186,7 @@ static int ShowController(vlc_object_t *p_this, const char *psz_variable,
     VLCVideoEffectsWindowController *_videoEffectsPanel;
     VLCConvertAndSaveWindowController *_convertAndSaveWindow;
     VLCExtensionsManager *_extensionsManager;
-    VLCInfo *_currentMediaInfoPanel;
+    VLCInformationWindowController *_currentMediaInfoPanel;
     VLCLibraryWindowController *_libraryWindowController;
 
     bool b_intf_terminating; /* Makes sure applicationWillTerminate will be called only once */
@@ -243,16 +243,16 @@ static VLCMain *sharedInstance = nil;
         _mainWindowController = [[NSWindowController alloc] initWithWindowNibName:@"MainWindow"];
         _libraryWindowController = [[VLCLibraryWindowController alloc] initWithLibraryWindow];
 
-        var_AddCallback(pl_Get(p_intf), "intf-toggle-fscontrol", ShowController, (__bridge void *)self);
-        var_AddCallback(pl_Get(p_intf), "intf-show", ShowController, (__bridge void *)self);
+        // FIXME: those variables will live on the current libvlc instance now. Depends on a future patch
+        var_AddCallback(p_intf, "intf-toggle-fscontrol", ShowController, (__bridge void *)self);
+        var_AddCallback(p_intf, "intf-show", ShowController, (__bridge void *)self);
 
         // Load them here already to apply stored profiles
         _videoEffectsPanel = [[VLCVideoEffectsWindowController alloc] init];
         _audioEffectsPanel = [[VLCAudioEffectsWindowController alloc] init];
 
-        playlist_t *p_playlist = pl_Get(p_intf);
         if ([NSApp currentSystemPresentationOptions] & NSApplicationPresentationFullScreen)
-            var_SetBool(p_playlist, "fullscreen", YES);
+            [_playlistController.playerController setFullscreen:YES];
 
         _nativeFullscreenMode = var_InheritBool(p_intf, "macosx-nativefullscreenmode");
 
@@ -310,13 +310,11 @@ static VLCMain *sharedInstance = nil;
     [[self mainWindow] updateVolumeSlider];
 
     // respect playlist-autostart
-    // note that PLAYLIST_PLAY will not stop any playback if already started
-    playlist_t * p_playlist = pl_Get(getIntf());
-    PL_LOCK;
-    BOOL kidsAround = p_playlist->p_playing->i_children != 0;
-    if (kidsAround && var_GetBool(p_playlist, "playlist-autostart"))
-        playlist_Control(p_playlist, PLAYLIST_PLAY, true);
-    PL_UNLOCK;
+    if (var_GetBool(p_intf, "playlist-autostart")) {
+        if ([_playlistController.playlistModel numberOfPlaylistItems] > 0) {
+            [_playlistController startPlaylist];
+        }
+    }
 }
 
 #pragma mark -
@@ -334,25 +332,17 @@ static VLCMain *sharedInstance = nil;
         return;
     b_intf_terminating = true;
 
-    [_input_manager onPlaybackHasEnded:nil];
     [_input_manager deinit];
 
     if (notification == nil)
         [[NSNotificationCenter defaultCenter] postNotificationName: NSApplicationWillTerminateNotification object: nil];
 
-    playlist_t * p_playlist = pl_Get(p_intf);
-
     /* save current video and audio profiles */
     [[self videoEffectsPanel] saveCurrentProfileAtTerminate];
     [[self audioEffectsPanel] saveCurrentProfileAtTerminate];
 
-    /* Save some interface state in configuration, at module quit */
-    config_PutInt("random", var_GetBool(p_playlist, "random"));
-    config_PutInt("loop", var_GetBool(p_playlist, "loop"));
-    config_PutInt("repeat", var_GetBool(p_playlist, "repeat"));
-
-    var_DelCallback(pl_Get(p_intf), "intf-toggle-fscontrol", ShowController, (__bridge void *)self);
-    var_DelCallback(pl_Get(p_intf), "intf-show", ShowController, (__bridge void *)self);
+    var_DelCallback(p_intf, "intf-toggle-fscontrol", ShowController, (__bridge void *)self);
+    var_DelCallback(p_intf, "intf-show", ShowController, (__bridge void *)self);
 
     [[NSNotificationCenter defaultCenter] removeObserver: self];
 
@@ -518,10 +508,10 @@ static VLCMain *sharedInstance = nil;
     return _videoEffectsPanel;
 }
 
-- (VLCInfo *)currentMediaInfoPanel;
+- (VLCInformationWindowController *)currentMediaInfoPanel;
 {
     if (!_currentMediaInfoPanel)
-        _currentMediaInfoPanel = [[VLCInfo alloc] init];
+        _currentMediaInfoPanel = [[VLCInformationWindowController alloc] init];
 
     return _currentMediaInfoPanel;
 }

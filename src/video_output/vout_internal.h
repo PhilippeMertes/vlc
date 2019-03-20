@@ -24,12 +24,15 @@
 #ifndef LIBVLC_VOUT_INTERNAL_H
 #define LIBVLC_VOUT_INTERNAL_H 1
 
+#include <stdatomic.h>
+
 #include <vlc_picture_fifo.h>
 #include <vlc_picture_pool.h>
 #include <vlc_vout_display.h>
 #include "vout_wrapper.h"
 #include "statistic.h"
 #include "chrono.h"
+#include "../clock/clock.h"
 
 /* It should be high enough to absorbe jitter due to difficult picture(s)
  * to decode but not too high as memory is not that cheap.
@@ -44,6 +47,7 @@
  */
 typedef struct {
     vout_thread_t        *vout;
+    vlc_clock_t          *clock;
     const video_format_t *fmt;
     unsigned             dpb_size;
     vlc_mouse_event      mouse_event;
@@ -63,8 +67,11 @@ struct vout_thread_sys_t
     /* Splitter module if used */
     char            *splitter_name;
 
-    /* Input thread for spu attachments */
-    input_thread_t    *input;
+    vlc_clock_t     *clock;
+    float           rate;
+    float           spu_rate;
+    vlc_tick_t      delay;
+    vlc_tick_t      spu_delay;
 
     /* */
     video_format_t  original;   /* Original format ie coming from the decoder */
@@ -163,6 +170,7 @@ struct vout_thread_sys_t
     void            *mouse_opaque;
 
     /* Video output window */
+    bool            window_active;
     vlc_mutex_t     window_lock;
 
     /* Video output display */
@@ -175,7 +183,14 @@ struct vout_thread_sys_t
     picture_pool_t  *decoder_pool;
     picture_fifo_t  *decoder_fifo;
     vout_chrono_t   render;           /**< picture render time estimator */
+
+    atomic_uintptr_t refs;
 };
+
+/**
+ * Creates a video output.
+ */
+vout_thread_t *vout_Create(vlc_object_t *obj) VLC_USED;
 
 /**
  * Returns a suitable vout or release the given one.
@@ -186,14 +201,12 @@ struct vout_thread_sys_t
  *
  * You can release the returned value either by vout_Request() or vout_Close().
  *
- * \param object a vlc object
  * \param cfg the video configuration requested.
  * \param input used to get attachments for spu filters
- * \return a vout
+ * \retval 0 on success
+ * \retval -1 on error
  */
-vout_thread_t * vout_Request( vlc_object_t *object, const vout_configuration_t *cfg,
-                              input_thread_t *input );
-#define vout_Request(a,b,c) vout_Request(VLC_OBJECT(a),b,c)
+int vout_Request(const vout_configuration_t *cfg, input_thread_t *input);
 
 /**
  * Disables a vout.
@@ -239,9 +252,13 @@ int vout_OpenWrapper(vout_thread_t *, const char *,
 void vout_CloseWrapper(vout_thread_t *);
 
 /* */
+void vout_SetSubpictureClock(vout_thread_t *vout, vlc_clock_t *clock);
 int spu_ProcessMouse(spu_t *, const vlc_mouse_t *, const video_format_t *);
 void spu_Attach( spu_t *, input_thread_t *input );
 void spu_Detach( spu_t * );
+void spu_clock_Set(spu_t *, vlc_clock_t *);
+void spu_clock_Reset(spu_t *);
+void spu_clock_SetDelay(spu_t *spu, vlc_tick_t delay);
 void spu_ChangeMargin(spu_t *, int);
 void spu_SetHighlight(spu_t *, const vlc_spu_highlight_t*);
 
@@ -250,6 +267,30 @@ void spu_SetHighlight(spu_t *, const vlc_spu_highlight_t*);
  * It is thread safe
  */
 void vout_ChangePause( vout_thread_t *, bool b_paused, vlc_tick_t i_date );
+
+/**
+ * This function will change the rate of the vout
+ * It is thread safe
+ */
+void vout_ChangeRate( vout_thread_t *, float rate );
+
+/**
+ * This function will change the delay of the vout
+ * It is thread safe
+ */
+void vout_ChangeDelay( vout_thread_t *, vlc_tick_t delay );
+
+/**
+ * This function will change the rate of the spu channel
+ * It is thread safe
+ */
+void vout_ChangeSpuRate( vout_thread_t *, float rate );
+/**
+ * This function will change the delay of the spu channel
+ * It is thread safe
+ */
+void vout_ChangeSpuDelay( vout_thread_t *, vlc_tick_t delay );
+
 
 /**
  * Updates the pointing device state.
@@ -266,17 +307,6 @@ void spu_OffsetSubtitleDate( spu_t *p_spu, vlc_tick_t i_duration );
  */
 void vout_GetResetStatistic( vout_thread_t *p_vout, unsigned *pi_displayed,
                              unsigned *pi_lost );
-
-/**
- * This function will ensure that all ready/displayed pictures have at most
- * the provided date.
- */
-void vout_Flush( vout_thread_t *p_vout, vlc_tick_t i_date );
-
-/**
- * Empty all the pending pictures in the vout
- */
-#define vout_FlushAll( vout )  vout_Flush( vout, VLC_TICK_INVALID )
 
 /*
  * Cancel the vout, if cancel is true, it won't return any pictures after this

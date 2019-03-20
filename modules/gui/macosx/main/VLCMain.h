@@ -1,7 +1,7 @@
 /*****************************************************************************
  * VLCMain.h: MacOS X interface module
  *****************************************************************************
- * Copyright (C) 2002-2016 VLC authors and VideoLAN
+ * Copyright (C) 2002-2019 VLC authors and VideoLAN
  *
  * Authors: Derk-Jan Hartman <hartman at videolan dot org>
  *          Felix Paul Kühne <fkuehne at videolan dot org>
@@ -31,7 +31,6 @@
 
 #import <vlc_common.h>
 #import <vlc_interface.h>
-#import <vlc_playlist_legacy.h>
 #import <vlc_vout.h>
 #import <vlc_aout.h>
 #import <vlc_input.h>
@@ -50,9 +49,6 @@
 
 intf_thread_t *getIntf(void);
 
-// TODO fix include order
-#import "extensions/helpers.h"
-
 static NSString * VLCInputChangedNotification = @"VLCInputChangedNotification";
 static NSString * VLCConfigurationChangedNotification = @"VLCConfigurationChangedNotification";
 static NSString * VLCMediaKeySupportSettingChangedNotification = @"VLCMediaKeySupportSettingChangedNotification";
@@ -62,7 +58,7 @@ static NSString * VLCAppleRemoteSettingChangedNotification = @"VLCAppleRemoteSet
  * VLCMain interface
  *****************************************************************************/
 @class AppleRemote;
-@class VLCInfo;
+@class VLCInformationWindowController;
 @class VLCMainMenu;
 @class VLCInputManager;
 @class VLCResumeDialogController;
@@ -78,7 +74,6 @@ static NSString * VLCAppleRemoteSettingChangedNotification = @"VLCAppleRemoteSet
 @class VLCVideoEffectsWindowController;
 @class VLCConvertAndSaveWindowController;
 @class VLCExtensionsManager;
-@class VLCInfo;
 @class VLCStatusBarIcon;
 @class VLCPlaylistController;
 
@@ -111,8 +106,7 @@ static NSString * VLCAppleRemoteSettingChangedNotification = @"VLCAppleRemoteSet
 - (VLCAudioEffectsWindowController *)audioEffectsPanel;
 - (VLCVideoEffectsWindowController *)videoEffectsPanel;
 
-- (VLCInfo *)currentMediaInfoPanel;
-
+- (VLCInformationWindowController *)currentMediaInfoPanel;
 
 - (VLCConvertAndSaveWindowController *)convertAndSaveWindow;
 

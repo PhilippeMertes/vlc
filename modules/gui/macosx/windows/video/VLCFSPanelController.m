@@ -26,6 +26,7 @@
 #import "VLCFSPanelController.h"
 
 #import <vlc_aout.h>
+#import <vlc_playlist_legacy.h>
 
 #import "coreinteraction/VLCCoreInteraction.h"
 #import "main/CompatibilityFixes.h"
@@ -204,7 +205,7 @@ static NSString *kAssociatedFullscreenRect = @"VLCFullscreenAssociatedWindowRect
         vlc_value_t pos;
         pos.f_float = [_timeSlider floatValue] / 10000.;
         var_Set(p_input, "position", pos);
-        vlc_object_release(p_input);
+        input_Release(p_input);
     }
     [[[VLCMain sharedInstance] mainWindow] updateTimeSlider];
 }
@@ -280,7 +281,7 @@ static NSString *kAssociatedFullscreenRect = @"VLCFullscreenAssociatedWindowRect
     NSString *playbackPosition = toNSStr(secstotimestr(psz_time, (int)SEC_FROM_VLC_TICK(t)));
 
     [_elapsedTime setStringValue:playbackPosition];
-    vlc_object_release(p_input);
+    input_Release(p_input);
 }
 
 - (void)setSeekable:(BOOL)seekable

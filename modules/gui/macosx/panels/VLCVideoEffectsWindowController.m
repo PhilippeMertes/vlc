@@ -29,12 +29,15 @@
 #import "main/VLCMain.h"
 #import "panels/dialogs/VLCPopupPanelController.h"
 #import "panels/dialogs/VLCTextfieldPanelController.h"
+#import "playlist/VLCPlaylistController.h"
+#import "playlist/VLCPlayerController.h"
+
+#import <vlc_playlist_legacy.h>
 
 #define getWidgetBoolValue(w)   ((vlc_value_t){ .b_bool = [w state] })
 #define getWidgetIntValue(w)    ((vlc_value_t){ .i_int = [w intValue] })
 #define getWidgetFloatValue(w)  ((vlc_value_t){ .f_float = [w floatValue] })
 #define getWidgetStringValue(w) ((vlc_value_t){ .psz_string = (char *)[[w stringValue] UTF8String] })
-
 
 #pragma mark -
 #pragma mark Initialization
@@ -108,25 +111,27 @@
 
     /* filter handling */
     NSString *tempString = B64DecNSStr([items firstObject]);
-    NSArray<NSValue *> *vouts = getVouts();
+    NSArray<NSValue *> *vouts = [[[[VLCMain sharedInstance] playlistController] playerController] allVideoOutputThreads];
 
     /* enable the new filters */
     var_SetString(p_playlist, "video-filter", [tempString UTF8String]);
-    if (vouts)
+    if (vouts) {
         for (NSValue *ptr in vouts) {
             vout_thread_t *p_vout = [ptr pointerValue];
             var_SetString(p_vout, "video-filter", [tempString UTF8String]);
         }
+    }
 
     tempString = B64DecNSStr([items objectAtIndex:1]);
     /* enable another round of new filters */
     var_SetString(p_playlist, "sub-source", [tempString UTF8String]);
-    if (vouts)
+    if (vouts) {
         for (NSValue *ptr in vouts) {
             vout_thread_t *p_vout = [ptr pointerValue];
             var_SetString(p_vout, "sub-source", [tempString UTF8String]);
-            vlc_object_release(p_vout);
+            vout_Release(p_vout);
         }
+    }
 
     tempString = B64DecNSStr([items objectAtIndex:2]);
     /* enable another round of new filters */
@@ -1015,7 +1020,7 @@
             [self setCropRightValue: [self cropLeftValue]];
     }
 
-    NSArray<NSValue *> *vouts = getVouts();
+    NSArray<NSValue *> *vouts = [[[[VLCMain sharedInstance] playlistController] playerController] allVideoOutputThreads];
     if (vouts)
         for (NSValue *ptr in vouts) {
             vout_thread_t *p_vout = [ptr pointerValue];
@@ -1023,7 +1028,7 @@
             var_SetInteger(p_vout, "crop-bottom", [_cropBottomTextField intValue]);
             var_SetInteger(p_vout, "crop-left", [_cropLeftTextField intValue]);
             var_SetInteger(p_vout, "crop-right", [_cropRightTextField intValue]);
-            vlc_object_release(p_vout);
+            vout_Release(p_vout);
         }
 }
 

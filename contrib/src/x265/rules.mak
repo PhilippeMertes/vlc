@@ -6,7 +6,9 @@ X265_SNAPURL := https://bitbucket.org/multicoreware/x265/get/$(X265_VERSION).tar
 
 ifdef BUILD_ENCODERS
 ifdef GPL
+ifndef HAVE_WINSTORE
 PKGS += x265
+endif
 endif
 endif
 
@@ -18,7 +20,7 @@ $(TARBALLS)/x265-git.tar.xz:
 	$(call download_git,$(X265_GITURL))
 
 $(TARBALLS)/x265-$(X265_VERSION).tar.bz2:
-	$(call download,$(X265_SNAPURL))
+	$(call download_pkg,$(X265_SNAPURL),x265)
 
 .sum-x265: x265-$(X265_VERSION).tar.bz2
 

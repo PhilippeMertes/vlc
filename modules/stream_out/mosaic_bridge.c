@@ -56,7 +56,7 @@ typedef struct
     char *psz_id;
     bool b_inited;
 
-    int i_chroma; /* force image format chroma */
+    vlc_fourcc_t i_chroma; /* force image format chroma */
 
     filter_chain_t *p_vf2;
 } sout_stream_sys_t;
@@ -291,8 +291,8 @@ static void *Add( sout_stream_t *p_stream, const es_format_t *p_fmt )
     if( !p_owner )
         return NULL;
     p_sys->p_decoder = &p_owner->dec;
-    p_sys->p_decoder->p_module = NULL;
-    p_sys->p_decoder->fmt_in = *p_fmt;
+    decoder_Init( p_sys->p_decoder, p_fmt );
+
     p_sys->p_decoder->b_frame_drop_allowed = true;
     p_sys->p_decoder->fmt_out = p_sys->p_decoder->fmt_in;
     p_sys->p_decoder->fmt_out.i_extra = 0;
@@ -319,7 +319,7 @@ static void *Add( sout_stream_t *p_stream, const es_format_t *p_fmt )
     if( !p_sys->p_decoder->p_module )
     {
         msg_Err( p_stream, "cannot find decoder" );
-        vlc_object_release( p_sys->p_decoder );
+        decoder_Destroy( p_sys->p_decoder );
         return NULL;
     }
 
@@ -329,7 +329,7 @@ static void *Add( sout_stream_t *p_stream, const es_format_t *p_fmt )
     p_bridge = GetBridge( p_stream );
     if ( p_bridge == NULL )
     {
-        vlc_object_t *p_libvlc = VLC_OBJECT( p_stream->obj.libvlc );
+        vlc_object_t *p_libvlc = VLC_OBJECT( vlc_object_instance(p_stream) );
         vlc_value_t val;
 
         p_bridge = xmalloc( sizeof( bridge_t ) );
@@ -429,15 +429,7 @@ static void Del( sout_stream_t *p_stream, void *id )
     if( !p_sys->b_inited )
         return;
 
-    if( p_sys->p_decoder != NULL )
-    {
-        if( p_sys->p_decoder->p_module )
-            module_unneed( p_sys->p_decoder, p_sys->p_decoder->p_module );
-        if( p_sys->p_decoder->p_description )
-            vlc_meta_Delete( p_sys->p_decoder->p_description );
-
-        vlc_object_release( p_sys->p_decoder );
-    }
+    decoder_Destroy( p_sys->p_decoder );
 
     /* Destroy user specified video filters */
     if( p_sys->p_vf2 )
@@ -467,7 +459,7 @@ static void Del( sout_stream_t *p_stream, void *id )
 
     if ( b_last_es )
     {
-        vlc_object_t *p_libvlc = VLC_OBJECT( p_stream->obj.libvlc );
+        vlc_object_t *p_libvlc = VLC_OBJECT( vlc_object_instance(p_stream) );
         for ( i = 0; i < p_bridge->i_es_num; i++ )
             free( p_bridge->pp_es[i] );
         free( p_bridge->pp_es );

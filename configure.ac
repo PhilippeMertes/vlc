@@ -339,9 +339,13 @@ AS_IF([test "${SYS}" = "mingw32"],[
   AS_IF([test "${enable_winstore_app}" = "yes"], [
     vlc_winstore_app=1
     LIBCOM=""
-     VLC_ADD_LIBS([libvlccore], [-lruntimeobject])
-     AC_LIBOBJ([gai_strerror])
-    ],[])
+    AX_APPEND_FLAG([-DWINSTORECOMPAT],[CFLAGS])
+    AX_APPEND_FLAG([-DWINSTORECOMPAT],[CPPFLAGS])
+    AX_APPEND_FLAG([-DWINSTORECOMPAT],[CXXFLAGS])
+    AX_APPEND_FLAG([-lwinstorecompat], [LDFLAGS])
+    VLC_ADD_LIBS([libvlccore], [-lruntimeobject])
+    AC_LIBOBJ([gai_strerror])
+  ],[])
   AC_SUBST([LIBCOM])
   ])
 AC_DEFINE_UNQUOTED(VLC_WINSTORE_APP, ${vlc_winstore_app}, [Define to 1 if you want to build for Windows Store apps])
@@ -463,7 +467,15 @@ AS_IF([test -n "${CONTRIB_DIR}"], [
   CFLAGS="${CFLAGS} -I${CONTRIB_DIR}/include"
   CXXFLAGS="${CXXFLAGS} -I${CONTRIB_DIR}/include"
   OBJCFLAGS="${OBJCFLAGS} -I${CONTRIB_DIR}/include -F${CONTRIB_DIR} -F${CONTRIB_DIR}/Frameworks"
-  export PKG_CONFIG_PATH="${CONTRIB_DIR}/lib/pkgconfig:${CONTRIB_DIR}/share/pkgconfig:$PKG_CONFIG_PATH"
+  PKG_CONFIG_PATH="${CONTRIB_DIR}/lib/pkgconfig:${CONTRIB_DIR}/share/pkgconfig:${PKG_CONFIG_PATH}"
+  case "${build_os}" in
+      mingw32)
+          export PKG_CONFIG_PATH=`cygpath -mp ${PKG_CONFIG_PATH}`
+      ;;
+      *)
+          export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}"
+      ;;
+  esac
   LDFLAGS="${LDFLAGS} -L${CONTRIB_DIR}/lib"
 
   AS_IF([test -z "$LUAC"], [
@@ -911,9 +923,6 @@ AC_CHECK_TYPE(ssize_t,, [
 dnl It seems that autoconf detects pkg-config only during the first
 dnl PKG_CHECK_MODULES from configure.ac - which makes sense. But in our case,
 dnl it is nested within a conditional block, so it was not working right.
-dnl Make PKG_CONFIG_PATH precious so that it appears in the help and get saved
-AC_ARG_VAR(PKG_CONFIG_PATH,
-       [Paths where to find .pc not at the default location])
 PKG_PROG_PKG_CONFIG()
 
 dnl On some OS we need static linking
@@ -1339,7 +1348,7 @@ AM_CONDITIONAL([HAVE_MMX], [test "${have_mmx}" = "yes"])
 AM_CONDITIONAL([HAVE_MMXEXT], [test "${have_mmxext}" = "yes"])
 
 dnl  Check for fully workin SSE2 intrinsics
-dnl  We need support for -mmmx, we need <emmintrin.h>, and we also need a
+dnl  We need support for -msse[2], we need <emmintrin.h>, and we also need a
 dnl  working compiler (http://gcc.gnu.org/bugzilla/show_bug.cgi?id=23963)
 AC_ARG_ENABLE([sse],
   AS_HELP_STRING([--disable-sse],
@@ -1432,6 +1441,7 @@ asm volatile("movsldup %%xmm1,%%xmm0"::"r"(p):"xmm0", "xmm1");
 
   AS_IF([test "${ac_cv_sse3_inline}" != "no"], [
     AC_DEFINE(CAN_COMPILE_SSE3, 1, [Define to 1 if SSE3 inline assembly is available.]) ])
+
   # SSSE3
   AC_CACHE_CHECK([if $CC groks SSSE3 inline assembly], [ac_cv_ssse3_inline], [
     AC_COMPILE_IFELSE([AC_LANG_PROGRAM(,[[
@@ -1499,6 +1509,88 @@ asm volatile("insertq %%xmm1,%%xmm0"::"r"(p):"xmm0", "xmm1");
     AC_DEFINE([CAN_COMPILE_SSE4A], [1], [Define to 1 if SSE4A inline assembly is available.]) ])
 ])
 AM_CONDITIONAL([HAVE_SSE2], [test "$have_sse2" = "yes"])
+
+dnl  Check for fully workin AVX2 intrinsics
+dnl  We need support for -mavx[2], we need <immintrin.h>, and we also need a
+dnl  working compiler (http://gcc.gnu.org/bugzilla/show_bug.cgi?id=23963)
+AC_ARG_ENABLE([avx],
+  AS_HELP_STRING([--disable-avx],
+    [disable AVX (1-2) optimizations (default auto)]),, [
+  case "${host_cpu}" in
+    i?86|x86_64)
+      enable_avx=yes
+      ;;
+    *)
+      enable_avx=no
+      ;;
+  esac
+])
+have_avx2="no"
+AS_IF([test "${enable_avx}" != "no"], [
+  ARCH="${ARCH} avx avx2"
+
+  VLC_SAVE_FLAGS
+  CFLAGS="${CFLAGS} -mavx2"
+  AC_CACHE_CHECK([if $CC groks AVX2 intrinsics], [ac_cv_c_avx2_intrinsics], [
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([
+[#include <immintrin.h>
+#include <stdint.h>
+uint64_t frobzor;]], [
+[__m256i a, b, c;
+a = b = c = _mm256_set1_epi64x((int64_t)frobzor);
+a = _mm256_slli_epi16(a, 3);
+a = _mm256_adds_epi16(a, b);
+c = _mm256_srli_epi16(c, 8);
+c = _mm256_slli_epi16(c, 3);
+b = _mm256_adds_epi16(b, c);
+a = _mm256_unpacklo_epi8(a, b);
+frobzor = (uint64_t)_mm256_extract_epi64(a, 0);]])], [
+      ac_cv_c_avx2_intrinsics=yes
+    ], [
+      ac_cv_c_avx2_intrinsics=no
+    ])
+  ])
+  VLC_RESTORE_FLAGS
+  AS_IF([test "${ac_cv_c_avx2_intrinsics}" != "no"], [
+    AC_DEFINE(HAVE_AVX2_INTRINSICS, 1, [Define to 1 if AVX2 intrinsics are available.])
+  ])
+
+  VLC_SAVE_FLAGS
+  CFLAGS="${CFLAGS} -mavx"
+  AC_CACHE_CHECK([if $CC groks AVX inline assembly], [ac_cv_avx_inline], [
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM(,[[
+void *p;
+asm volatile("xorps256 %%ymm1,%%ymm2"::"r"(p):"ymm1", "ymm2");
+]])
+    ], [
+      ac_cv_avx_inline=yes
+    ], [
+      ac_cv_avx_inline=no
+    ])
+  ])
+
+  AS_IF([test "${ac_cv_avx_inline}" != "no" -a "${SYS}" != "solaris"], [
+    AC_DEFINE(CAN_COMPILE_AVX, 1, [Define to 1 if AVX inline assembly is available.])
+  ])
+
+  AC_CACHE_CHECK([if $CC groks AVX2 inline assembly], [ac_cv_avx2_inline], [
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM(,[[
+void *p;
+asm volatile("punpckhqdq256 %%ymm1,%%ymm2"::"r"(p):"ymm1", "ymm2");
+]])
+    ], [
+      ac_cv_avx2_inline=yes
+    ], [
+      ac_cv_avx2_inline=no
+    ])
+  ])
+  VLC_RESTORE_FLAGS
+  AS_IF([test "${ac_cv_avx2_inline}" != "no" -a "${SYS}" != "solaris"], [
+    AC_DEFINE(CAN_COMPILE_AVX2, 1, [Define to 1 if AVX2 inline assembly is available.])
+    have_avx2="yes"
+  ])
+])
+AM_CONDITIONAL([HAVE_AVX2], [test "$have_avx2" = "yes"])
 
 VLC_SAVE_FLAGS
 CFLAGS="${CFLAGS} -mmmx"
@@ -1898,21 +1990,12 @@ AS_IF([test "$SYS" = "linux" -a "${enable_linsys}" != "no"], [
 dnl
 dnl dvdread module: check for libdvdread
 dnl
-PKG_ENABLE_MODULES_VLC([DVDREAD], [], [dvdread > 4.9.0], [dvdread input module], [auto])
+PKG_ENABLE_MODULES_VLC([DVDREAD], [], [dvdread > 6.0.0], [dvdread input module], [auto])
 
 dnl
 dnl libdvdnav plugin
 dnl
-PKG_ENABLE_MODULES_VLC([DVDNAV], [], [dvdnav > 4.9.0], [DVD with navigation input module (dvdnav)], [auto])
-AS_IF([test "${enable_dvdnav}" != "no"], [
-  AC_MSG_CHECKING(for dvdnav_stream_cb in dvdnav/dvdnav.h)
-    AC_EGREP_HEADER(dvdnav_stream_cb,dvdnav/dvdnav.h,[
-      AC_MSG_RESULT(yes)
-      AC_DEFINE(HAVE_STREAM_CB_IN_DVDNAV_H, 1, For dvdnav demux support)
-      ],[
-      AC_MSG_RESULT(no)
-    ])
-])
+PKG_ENABLE_MODULES_VLC([DVDNAV], [], [dvdnav >= 6.0.0], [DVD with navigation input module (dvdnav)], [auto])
 
 dnl
 dnl  Blu-ray Disc Support with libbluray
@@ -2018,7 +2101,7 @@ AC_ARG_ENABLE([libcddb],
   AS_HELP_STRING([--disable-libcddb],
     [disable CDDB for Audio CD (default enabled)]))
 
-if test "${enable_vcd}" != "no"
+if test "${enable_vcd}" != "no" -a test "${enable_winstore_app}" != "yes"
 then
   AC_MSG_CHECKING(for cdrom_msf0 in linux/cdrom.h)
   AC_EGREP_HEADER(cdrom_msf0,linux/cdrom.h,[
@@ -3191,8 +3274,6 @@ AS_IF([test "${enable_xcb}" != "no"], [
     xcb_err="$xcb_err ${XCB_SHM_PKG_ERRORS}."])
   PKG_CHECK_MODULES([XCB_XKB], [xcb-xkb],, [
     xcb_err="$xcb_err ${XCB_XKB_PKG_ERRORS}."])
-  PKG_CHECK_MODULES([XCB_XV], [xcb-xv >= 1.1.90.1],, [
-    xcb_err="$xcb_err ${XCB_XV_PKG_ERRORS}."])
 
   dnl xproto
   PKG_CHECK_MODULES(XPROTO, [xproto],, [

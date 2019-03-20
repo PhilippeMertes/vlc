@@ -51,7 +51,18 @@ endif
 ifdef HAVE_CROSS_COMPILE
 need_pkg = 1
 else
+ifeq ($(findstring mingw32,$(BUILD)),mingw32)
+need_pkg = $(shell PKG_CONFIG_LIBDIR="${PKG_CONFIG_PATH}" $(PKG_CONFIG) $(1) || echo 1)
+else
 need_pkg = $(shell $(PKG_CONFIG) $(1) || echo 1)
+endif
+endif
+
+ifeq ($(findstring mingw32,$(BUILD)),mingw32)
+MSYS_BUILD := 1
+endif
+ifeq ($(findstring msys,$(BUILD)),msys)
+MSYS_BUILD := 1
 endif
 
 #
@@ -165,6 +176,11 @@ EXTRA_LDFLAGS += -m32
 endif
 endif
 
+ifdef HAVE_WINSTORE
+EXTRA_CFLAGS += -DWINSTORECOMPAT
+EXTRA_LDFLAGS += -lwinstorecompat
+endif
+
 cppcheck = $(shell $(CC) $(CFLAGS) -E -dM - < /dev/null | grep -E $(1))
 
 EXTRA_CFLAGS += -I$(PREFIX)/include
@@ -216,6 +232,9 @@ PKG_CONFIG_LIBDIR := /usr/$(HOST)/lib/pkgconfig
 export PKG_CONFIG_LIBDIR
 endif
 PKG_CONFIG_PATH := $(PREFIX)/lib/pkgconfig:$(PKG_CONFIG_PATH)
+ifeq ($(findstring mingw32,$(BUILD)),mingw32)
+PKG_CONFIG_PATH := $(shell cygpath -pm ${PKG_CONFIG_PATH})
+endif
 export PKG_CONFIG_PATH
 
 ifndef GIT
@@ -365,6 +384,9 @@ RECONF = mkdir -p -- $(PREFIX)/share/aclocal && \
 	cd $< && $(AUTORECONF) -fiv $(ACLOCAL_AMFLAGS)
 CMAKE = cmake . -DCMAKE_TOOLCHAIN_FILE=$(abspath toolchain.cmake) \
 		-DCMAKE_INSTALL_PREFIX=$(PREFIX) $(CMAKE_GENERATOR) -DCMAKE_DEBUG_POSTFIX:STRING=
+ifdef MSYS_BUILD
+CMAKE += -DCMAKE_LINK_LIBRARY_SUFFIX:STRING=.a
+endif
 
 ifeq ($(V),1)
 CMAKE += -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON
@@ -485,6 +507,22 @@ help:
 
 .PHONY: all fetch fetch-all install mostlyclean clean distclean package list help prebuilt
 
+CMAKE_SYSTEM_NAME =
+ifdef HAVE_WIN32
+CMAKE_SYSTEM_NAME = Windows
+ifdef HAVE_VISUALSTUDIO
+ifdef HAVE_WINSTORE
+CMAKE_SYSTEM_NAME = WindowsStore
+endif
+ifdef HAVE_WINDOWSPHONE
+CMAKE_SYSTEM_NAME = WindowsPhone
+endif
+endif
+endif
+ifdef HAVE_DARWIN_OS
+CMAKE_SYSTEM_NAME = Darwin
+endif
+
 # CMake toolchain
 toolchain.cmake:
 	$(RM) $@
@@ -494,22 +532,15 @@ else
 	echo "set(CMAKE_BUILD_TYPE Release)" >> $@
 endif
 	echo "set(CMAKE_SYSTEM_PROCESSOR $(ARCH))" >> $@
+	if test -n "$(CMAKE_SYSTEM_NAME)"; then \
+		echo "set(CMAKE_SYSTEM_NAME $(CMAKE_SYSTEM_NAME))" >> $@; \
+	fi;
 ifdef HAVE_WIN32
-ifdef HAVE_WINDOWSPHONE
-	echo "set(CMAKE_SYSTEM_NAME WindowsPhone)" >> $@
-else
-ifdef HAVE_WINSTORE
-	echo "set(CMAKE_SYSTEM_NAME WindowsStore)" >> $@
-else
-	echo "set(CMAKE_SYSTEM_NAME Windows)" >> $@
-endif
-endif
 ifdef HAVE_CROSS_COMPILE
-	echo "set(CMAKE_RC_COMPILER $(HOST)-windres)" >> $@
+	echo "set(CMAKE_RC_COMPILER $(WINDRES))" >> $@
 endif
 endif
 ifdef HAVE_DARWIN_OS
-	echo "set(CMAKE_SYSTEM_NAME Darwin)" >> $@
 	echo "set(CMAKE_C_FLAGS \"$(CFLAGS) $(EXTRA_CFLAGS)\")" >> $@
 	echo "set(CMAKE_CXX_FLAGS \"$(CFLAGS) $(EXTRA_CXXFLAGS)\")" >> $@
 	echo "set(CMAKE_LD_FLAGS \"$(LDFLAGS)\")" >> $@
@@ -533,7 +564,11 @@ endif
 endif
 	echo "set(CMAKE_C_COMPILER $(CC))" >> $@
 	echo "set(CMAKE_CXX_COMPILER $(CXX))" >> $@
+ifdef MSYS_BUILD
+	echo "set(CMAKE_FIND_ROOT_PATH `cygpath -m $(PREFIX)`)" >> $@
+else
 	echo "set(CMAKE_FIND_ROOT_PATH $(PREFIX))" >> $@
+endif
 	echo "set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)" >> $@
 ifdef HAVE_CROSS_COMPILE
 	echo "set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)" >> $@

@@ -22,7 +22,6 @@
 
 #include "recents.hpp"
 #include "dialogs_provider.hpp"
-#include "menus.hpp"
 
 #include "seekpoints.hpp"
 
@@ -44,12 +43,12 @@ void SeekPoints::update()
     if ( input_Control( p_input_thread, INPUT_GET_FULL_TITLE_INFO, &pp_title,
                         &i_title_count ) != VLC_SUCCESS )
     {
-        vlc_object_release( p_input_thread );
+        input_Release(p_input_thread);
         pointsList.clear();
         return;
     }
 
-    vlc_object_release( p_input_thread );
+    input_Release(p_input_thread);
 
     if( i_title_id < i_title_count )
         p_title = pp_title[i_title_id];
@@ -93,6 +92,6 @@ bool SeekPoints::jumpTo( int i_chapterindex )
     input_thread_t *p_input_thread = playlist_CurrentInput( THEPL );
     if( !p_input_thread ) return false;
     bool b_succ = var_Set( p_input_thread, "chapter", val );
-    vlc_object_release( p_input_thread );
+    input_Release(p_input_thread);
     return ( b_succ == VLC_SUCCESS );
 }

@@ -3361,6 +3361,7 @@ static void MP4_TrackSetup( demux_t *p_demux, mp4_track_t *p_track,
     p_track->i_width = BOXDATA(p_tkhd)->i_width / BLOCK16x16;
     p_track->i_height = BOXDATA(p_tkhd)->i_height / BLOCK16x16;
     p_track->f_rotation = BOXDATA(p_tkhd)->f_rotation;
+    p_track->i_flip = BOXDATA(p_tkhd)->i_flip;
 
     /* FIXME: unhandled box: tref */
 
@@ -4030,7 +4031,8 @@ static void MP4_TrackSetELST( demux_t *p_demux, mp4_track_t *tk,
         {
             uint64_t i_dur = elst->i_segment_duration[tk->i_elst];
 
-            if( tk->i_elst_time <= i_mvt && i_mvt < tk->i_elst_time + i_dur )
+            if( tk->i_elst_time <= i_mvt
+             && i_mvt < (int64_t)(tk->i_elst_time + i_dur) )
             {
                 break;
             }

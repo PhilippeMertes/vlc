@@ -146,7 +146,6 @@ private:
     intf_thread_t  *p_intf;
     MainInputManager* p_mim;
     input_thread_t *p_input;
-    vlc_object_t   *p_input_vbi;
     input_item_t   *p_item;
     int             i_old_playing_status;
     QString         oldName;
@@ -192,7 +191,7 @@ public slots:
     void littlefaster();
     void littleslower();
     void normalRate();
-    void setRate( int );
+    void setRate( float );
     /* Jumping */
     void jumpFwd();
     void jumpBwd();

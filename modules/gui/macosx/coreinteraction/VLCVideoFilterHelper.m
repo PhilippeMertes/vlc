@@ -24,8 +24,11 @@
 
 #import <vlc_modules.h>
 #import <vlc_charset.h>
+#import <vlc_playlist_legacy.h>
 
 #import "main/VLCMain.h"
+#import "playlist/VLCPlaylistController.h"
+#import "playlist/VLCPlayerController.h"
 
 @implementation VLCVideoFilterHelper
 
@@ -101,12 +104,12 @@
 
     /* Try to set non splitter filters on the fly */
     if (strcmp(psz_filter_type, "video-splitter")) {
-        NSArray<NSValue *> *vouts = getVouts();
+        NSArray<NSValue *> *vouts = [[[[VLCMain sharedInstance] playlistController] playerController] allVideoOutputThreads];
         if (vouts)
             for (NSValue * val in vouts) {
                 vout_thread_t *p_vout = [val pointerValue];
                 var_SetString(p_vout, psz_filter_type, psz_string);
-                vlc_object_release(p_vout);
+                vout_Release(p_vout);
             }
     }
 
@@ -117,7 +120,7 @@
                      forFilter: (char const *)psz_filter
                      withValue: (vlc_value_t)value
 {
-    NSArray<NSValue *> *vouts = getVouts();
+    NSArray<NSValue *> *vouts = [[[[VLCMain sharedInstance] playlistController] playerController] allVideoOutputThreads];
     intf_thread_t *p_intf = getIntf();
     if (!p_intf)
         return;
@@ -172,7 +175,7 @@
 
     if (vouts)
         for (NSValue *ptr in vouts)
-            vlc_object_release((vout_thread_t *)[ptr pointerValue]);
+            vout_Release((vout_thread_t *)[ptr pointerValue]);
 }
 
 
