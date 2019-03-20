@@ -7,6 +7,7 @@ extern "C" {
 #include <QTabWidget>
 #include <QGridLayout>
 #include <QPushButton>
+#include <QMessageBox>
 
 PvdStatsDialog::PvdStatsDialog(intf_thread_t *_p_intf) : QVLCFrame(_p_intf)
 {
@@ -24,7 +25,11 @@ PvdStatsDialog::PvdStatsDialog(intf_thread_t *_p_intf) : QVLCFrame(_p_intf)
     /* TabWidgets and Tabs creation, tabs named after PvDs */
     pvdTabW = new QTabWidget;
     if(pvd_get_pvd_list_sync(conn, pvd_list)) {
-        msg_Err(p_intf, "Error on getting PvD list from daemon.\nMake sure the daemon is running on port 10101.");
+        msg_Warn(p_intf, "Error on getting PvD list from daemon.\n"
+                        "Make sure pvdd is running on port 10101.");
+        QMessageBox::warning(this, "No connection to pvdd",
+                             "Error on getting PvD list from daemon.\n"
+                             "Make sure pvdd is running on port 10101.");
     } else {
         char *pvdname;
         for(int i = 0; i < pvd_list->npvd; ++i) {
