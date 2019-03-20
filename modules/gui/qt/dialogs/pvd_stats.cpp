@@ -1,5 +1,9 @@
 #include "dialogs/pvd_stats.hpp"
 
+extern "C" {
+    #include <libpvd.h>
+}
+
 #include <QTabWidget>
 #include <QGridLayout>
 #include <QPushButton>
@@ -13,14 +17,23 @@ PvdStatsDialog::PvdStatsDialog(intf_thread_t *_p_intf) : QVLCFrame(_p_intf)
     setWindowFlags(Qt::Window | Qt::CustomizeWindowHint |
                     Qt::WindowCloseButtonHint | Qt::WindowMinimizeButtonHint);
 
+    /* get list of PvD names */
+    t_pvd_connection *conn = pvd_connect(10101);
+    t_pvd_list *pvd_list = (t_pvd_list*) malloc(sizeof(t_pvd_list));
 
-    /* TabWidgets and Tabs creation */
+    /* TabWidgets and Tabs creation, tabs named after PvDs */
     pvdTabW = new QTabWidget;
-    char tab_string[256];
-    for(int i = 0; i < 3; ++i) {
-        sprintf(tab_string, "PvD %d", i);
-        pvdTabW->addTab(new PvdStatsPanel(pvdTabW), qtr(tab_string));
+    if(pvd_get_pvd_list_sync(conn, pvd_list)) {
+        msg_Err(p_intf, "Error on getting PvD list from daemon.\nMake sure the daemon is running on port 10101.");
+    } else {
+        char *pvdname;
+        for(int i = 0; i < pvd_list->npvd; ++i) {
+            pvdname = strdup(pvd_list->pvdnames[i]);
+            pvdTabW->addTab(new PvdStatsPanel(pvdTabW), qtr(pvdname));
+        }
     }
+
+    free(pvd_list);
 
     /* Close button creation */
     QPushButton *closeButton = new QPushButton(qtr("&Close"));

@@ -25,7 +25,7 @@ misc_LTLIBRARIES += libfingerprinter_plugin.la
 
 libgnutls_plugin_la_SOURCES = misc/gnutls.c
 libgnutls_plugin_la_CFLAGS = $(AM_CFLAGS) $(GNUTLS_CFLAGS)
-libgnutls_plugin_la_LIBADD = $(GNUTLS_LIBS) /usr/local/lib/pvd/libpvd.la
+libgnutls_plugin_la_LIBADD = $(GNUTLS_LIBS) -lpvd
 if HAVE_WIN32
 libgnutls_plugin_la_LIBADD += $(SOCKET_LIBS)
 endif
