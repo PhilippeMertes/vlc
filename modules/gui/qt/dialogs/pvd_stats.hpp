@@ -19,6 +19,9 @@ private:
     virtual ~PvdStatsDialog();
 
     QTabWidget *pvdTabW;
+    vlc_thread_t pvd_stats_th;
+
+    char** pvdnames;
 
     //PvdStatsPanel *PSP;
 
@@ -27,5 +30,7 @@ private slots:
     friend class Singleton<PvdStatsDialog>;
 
 };
+
+void *update_stats(void *args);
 
 #endif //QVLC_PVD_STATS_DIALOG_H_

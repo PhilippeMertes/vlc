@@ -325,9 +325,6 @@ static int gnutls_Handshake(vlc_tls_t *tls, char **restrict alp)
     vlc_tls_gnutls_t *priv = (vlc_tls_gnutls_t *)tls;
     vlc_object_t *obj = priv->obj;
     gnutls_session_t session = priv->session;
-    char proc_pvd[256];
-    proc_get_bound_pvd(proc_pvd);
-    printf("Bound PvD at TLS handshake: %s\n", proc_pvd);
     int val = gnutls_handshake(session);
 
     if (gnutls_error_is_fatal(val))

@@ -242,7 +242,6 @@ vlc_tls_t *vlc_tls_SocketOpenTLS(vlc_tls_client_t *creds, const char *name,
         if (vlc_dictionary_has_key(creds->url_pvds, "default")) {
             pvd_arr = vlc_dictionary_value_for_key(creds->url_pvds, "default");
             def_pvd = vlc_array_item_at_index(pvd_arr, 0);
-            printf("def_pvd: %s\n", def_pvd);
         }
 
         // traverse different URL keys
@@ -273,7 +272,6 @@ vlc_tls_t *vlc_tls_SocketOpenTLS(vlc_tls_client_t *creds, const char *name,
                     pvd = vlc_array_item_at_index(pvd_arr, index);
                 }
 
-                printf("PvD: %s\n", pvd);
                 proc_bind_to_pvd(strdup(pvd));
                 char proc_pvd[256];
                 proc_get_bound_pvd(proc_pvd);

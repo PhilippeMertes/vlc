@@ -116,6 +116,9 @@ char *config_GetPsz(const char *psz_name)
 
     p_config = config_FindConfig( psz_name );
 
+    if (!p_config)
+        return NULL;
+
     /* sanity checks */
     assert(p_config != NULL);
     assert(IsConfigStringType (p_config->i_type));
