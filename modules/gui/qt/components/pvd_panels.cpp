@@ -25,12 +25,12 @@ extern "C" {
 intf_thread_t* PvdStatsPanel::p_intf = NULL;
 
 
-PvdStatsPanel::PvdStatsPanel(QWidget *parent, intf_thread_t *_p_intf) : QWidget(parent)
+PvdStatsPanel::PvdStatsPanel(QWidget *parent, intf_thread_t *_p_intf, char *_pvdname) : QWidget(parent)
 {
-    if (p_intf == NULL) {
+    if (p_intf == NULL)
         p_intf = _p_intf;
-        std::cout << "p_intf == NULL" << std::endl;
-    }
+
+    pvdname = _pvdname;
     QVBoxLayout *layout = new QVBoxLayout(this);
 
     /* Label above the stats tree */
@@ -54,93 +54,134 @@ PvdStatsPanel::PvdStatsPanel(QWidget *parent, intf_thread_t *_p_intf) : QWidget(
     catName->setExpanded(true);                                        \
     statsTree->addTopLevelItem(catName); }
 
-    CREATE_CATEGORY(throughput, qtr("Throughput"));
-    CREATE_CATEGORY(latency, qtr("Latency"));
+#define CREATE_AND_ADD_TO_CAT( itemName, itemText, itemValue, catName, unit ) { \
+    CREATE_TREE_ITEM( itemName, itemText, itemValue, unit );                   \
+    catName->addChild( itemName ); }
 
+    CREATE_CATEGORY(tput, qtr("Throughput"));
+    CREATE_CATEGORY(rtt, qtr("Round-trip time"));
+
+    CREATE_AND_ADD_TO_CAT(tput_gen, qtr("General"), "", tput, qtr(""));
+    CREATE_AND_ADD_TO_CAT(tput_avg, qtr("Avg"), "0", tput_gen, qtr("Mb/s"));
+    CREATE_AND_ADD_TO_CAT(tput_min, qtr("Min"), "0", tput_gen, qtr("Mb/s"));
+    CREATE_AND_ADD_TO_CAT(tput_max, qtr("Max"), "0", tput_gen, qtr("Mb/s"));
+
+    CREATE_AND_ADD_TO_CAT(rtt_avg, qtr("Avg"), "0", rtt, qtr("s"));
+    CREATE_AND_ADD_TO_CAT(rtt_min, qtr("Min"), "0", rtt, qtr("s"));
+    CREATE_AND_ADD_TO_CAT(rtt_max, qtr("Max"), "0", rtt, qtr("s"));
+
+#undef CREATE_AND_ADD_TO_CAT
 #undef CREATE_CATEGORY
 #undef CREATE_TREE_ITEM
+
+    tput->setExpanded(true);
+    rtt->setExpanded(true);
 
     /* Configure layout */
     statsTree->resizeColumnToContents(0);
     statsTree->setColumnWidth(1, 200);
     layout->addWidget(statsTree, 4, 0);
-
-    /* start thread handling connection with pvd-stats */
-    if(vlc_clone(&pvd_stats_th, update_stats, NULL, VLC_THREAD_PRIORITY_LOW)) {
-        //msg_Err(p_intf, "Unable to create thread polling PvD statistics");
-        QMessageBox::critical(this, "Error on thread creation", "Unable to create thread polling PvD statistics");
-    }
 }
 
 
 
-void parse_json(QJsonObject& json) {
-    QStringList keys = json.keys();
-    for (int i = 0; i < keys.size(); ++i) {
-        std::cout << keys.at(i).toLocal8Bit().constData() << std::endl;
+void PvdStatsPanel::update_parse_json(const QJsonObject& json) {
+#define UPDATE_FLOAT( widget, format, calc... ) \
+    { QString str; widget->setText( 1 , str.sprintf( format, ## calc ) );  }
+
+    //const char* stats_keys[3] = {"general", "upload", "download"};
+    const char* val_keys[3] = {"min", "max", "avg"};
+    QTreeWidgetItem* tput_widgets[3] = {tput_min, tput_max, tput_avg};
+    QTreeWidgetItem* rtt_widgets[3] = {rtt_min, rtt_max, rtt_avg};
+    QJsonValue val;
+    QJsonObject obj;
+
+    // update throughput information
+    QString key = QString("tput");
+    if (json.contains(key)) {
+        obj = json.value(key).toObject();
+        key = QString("general");
+        obj = obj.value(key).toObject();
+
+        for (int i = 0; i < 3; ++i) {
+            key = QString(val_keys[i]);
+            if (obj.contains(key)) {
+                val = obj.value(key);
+                std::cout << key.toStdString() << ": " << val.toDouble() << std::endl;
+                UPDATE_FLOAT(tput_widgets[i], "%.6f", val.toDouble());
+            }
+        }
+
     }
+
+    // update RTT information
+    key = QString("rtt");
+    if (json.contains(key)) {
+        obj = json.value(key).toObject();
+        obj = obj.value(QString("general")).toObject();
+        for (int i = 0; i < 3; ++i) {
+            key = QString(val_keys[i]);
+            val = obj.value(key);
+            UPDATE_FLOAT(rtt_widgets[i], "%.6f", val.toDouble());
+        }
+    }
+
+#undef UPDATE_FLOAT
 }
 
 
-void *PvdStatsPanel::update_stats(void *args)
-{
+void PvdStatsPanel::update() {
+    std::cout << "updating panel " << pvdname << std::endl;
     using ::close;
     int sock;
     struct sockaddr_un addr;
-    char msg[] = "all";
+    std::string msg = "all " + pvdname;
+    std::cout << msg << std::endl;
     char resp[2048];
     QString json_str;
     QJsonObject json;
     QJsonDocument json_doc;
-    int ret;
 
     addr.sun_family = AF_LOCAL;
     strcpy(addr.sun_path, SOCKET_FILE);
-
-    // update the statistics every 5 seconds
-    while(1) {
-        // create socket
-        if ((sock = ::socket(AF_LOCAL, SOCK_STREAM, 0)) <= 0) {
-            msg_Err(p_intf, "Unable to create socket to communicate with pvd-stats\n");
-            break;
-        }
-
-        // connect to the pvd-stats socket
-        if (::connect(sock, (struct sockaddr *) &addr, sizeof(addr)) != 0) {
-            printf("Unable to connect to the pvd-stats socket\n%s\n", strerror(errno));
-            msg_Err(p_intf, "Unable to connect to the pvd-stats socket:\n%s\n", strerror(errno));
-            close(sock);
-            break;
-        }
-
-        // send message
-        ::send(sock, msg, strlen(msg), 0);
-
-        // receive answer
-        while((ret = recv(sock, resp, 2048, 0)) > 0) {
-            json_str.append(resp);
-        }
-
-        if (!json_str.isEmpty()) {
-            std::cout << "pvd-stats answer:\n" << json_str.toStdString() << std::endl;
-            // convert string to QJsonObject
-            json_doc = QJsonDocument::fromJson(json_str.toUtf8());
-            if ((!json_doc.isNull() && json_doc.isObject()))
-                json = json_doc.object();
-            else {
-                msg_Err(p_intf, "PvD-Stats answer was not a JSON object\nAnswer:\n%s",
-                        json_str.toStdString().c_str());
-                close(sock);
-                break;
-            }
-            parse_json(json);
-        }
-        json_str.clear();
-        close(sock);
-
-        sleep(5);
+    // create socket
+    if ((sock = socket(AF_LOCAL, SOCK_STREAM, 0)) <= 0) {
+        msg_Err(p_intf, "Unable to create socket to communicate with pvd-stats\n");
+        return;
     }
 
-    return NULL;
+    // connect to the pvd-stats socket
+    if (::connect(sock, (struct sockaddr *) &addr, sizeof(addr)) != 0) {
+        msg_Warn(p_intf, "Unable to connect to the pvd-stats socket:\n%s\n", strerror(errno));
+        QMessageBox::warning(this, "pvd-stats connection error",
+                "Unable to connect to the pvd-stats socket.\nCheck if it is running.");
+        close(sock);
+        return;
+    }
+
+    // send message
+    send(sock, msg.c_str(), msg.length(), 0);
+
+    // receive answer
+    while(recv(sock, resp, 2048, 0) > 0) {
+        json_str.append(resp);
+    }
+
+    if (!json_str.isEmpty()) {
+        std::cout << "pvd-stats answer:\n" << json_str.toStdString() << std::endl;
+        // convert string to QJsonObject
+        json_doc = QJsonDocument::fromJson(json_str.toUtf8());
+        if ((!json_doc.isNull() && json_doc.isObject()))
+            json = json_doc.object();
+        else {
+            msg_Err(p_intf, "PvD-Stats answer was not a JSON object\nAnswer:\n%s",
+                    json_str.toStdString().c_str());
+            close(sock);
+            return;
+        }
+        update_parse_json(json);
+    }
+    json_str.clear();
+    close(sock);
 }
 

@@ -19,6 +19,12 @@ private:
     virtual ~PvdStatsDialog();
 
     QTabWidget *pvdTabW;
+    vlc_thread_t pvd_stats_th;
+
+    static QVector<PvdStatsPanel*> panels;
+
+    static int visible_panel();
+    static void *update_stats(void *args);
 
 private slots:
     friend class Singleton<PvdStatsDialog>;

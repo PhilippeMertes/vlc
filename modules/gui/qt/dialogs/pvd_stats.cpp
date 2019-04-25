@@ -4,11 +4,15 @@ extern "C" {
     #include <libpvd.h>
 }
 
+#include <iostream>
+
 #include <QTabWidget>
 #include <QGridLayout>
 #include <QPushButton>
 #include <QMessageBox>
+#include <QVector>
 
+QVector<PvdStatsPanel*> PvdStatsDialog::panels = QVector<PvdStatsPanel*>();
 
 PvdStatsDialog::PvdStatsDialog(intf_thread_t *_p_intf) : QVLCFrame(_p_intf)
 {
@@ -35,11 +39,27 @@ PvdStatsDialog::PvdStatsDialog(intf_thread_t *_p_intf) : QVLCFrame(_p_intf)
         char *pvdname;
         for(int i = 0; i < pvd_list->npvd; ++i) {
             pvdname = strdup(pvd_list->pvdnames[i]);
-            pvdTabW->addTab(new PvdStatsPanel(pvdTabW, p_intf), qtr(pvdname));
+            panels.push_back(new PvdStatsPanel(pvdTabW, p_intf, pvdname));
+            pvdTabW->addTab(panels[i], qtr(pvdname));
         }
     }
 
     free(pvd_list);
+
+
+    /*
+    // TODO: delete after testing
+    panels.push_back(new PvdStatsPanel(pvdTabW, p_intf, "video.mpvd.io."));
+    pvdTabW->addTab(panels[0], qtr("video.mpvd.io."));
+    if (panels[0]->isVisible()) {
+        std::cout << "panels[0] is visible" << std::endl;
+    }
+    panels.push_back(new PvdStatsPanel(pvdTabW, p_intf, "test1.example.com."));
+    pvdTabW->addTab(panels[1], qtr("test1.example.com."));
+    if (panels[1]->isVisible()) {
+        std::cout << "panels[1] is visible" << std::endl;
+    }
+     */
 
     /* Close button creation */
     QPushButton *closeButton = new QPushButton(qtr("&Close"));
@@ -53,9 +73,35 @@ PvdStatsDialog::PvdStatsDialog(intf_thread_t *_p_intf) : QVLCFrame(_p_intf)
     BUTTONACT(closeButton, close());
 
     restoreWidgetPosition("PvdStats", QSize(600, 480));
+
+    /* start thread handling connection with pvd-stats */
+    if(vlc_clone(&pvd_stats_th, update_stats, NULL, VLC_THREAD_PRIORITY_LOW)) {
+        msg_Err(p_intf, "Unable to create thread polling PvD statistics");
+        QMessageBox::critical(this, "Error on thread creation", "Unable to create thread polling PvD statistics");
+    }
 }
 
 PvdStatsDialog::~PvdStatsDialog()
 {
     saveWidgetPosition("PvdStats");
+}
+
+void *PvdStatsDialog::update_stats(void *args)
+{
+    int idx;
+
+    while (1) {
+        if ((idx = visible_panel()) >= 0) {
+            panels[idx]->update();
+        }
+        sleep(5);
+    }
+}
+
+int PvdStatsDialog::visible_panel() {
+    for (int i = 0; i < panels.size(); ++i) {
+        if (panels[i]->isVisible())
+            return i;
+    }
+    return -1;
 }
