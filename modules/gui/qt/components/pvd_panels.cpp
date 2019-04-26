@@ -40,7 +40,7 @@ PvdStatsPanel::PvdStatsPanel(QWidget *parent, intf_thread_t *_p_intf, char *_pvd
 
     /* Create tree containing the statistics */
     statsTree = new QTreeWidget(this);
-    statsTree->setColumnCount(2);
+    statsTree->setColumnCount(3);
     statsTree->setHeaderHidden(true);
 
     /* Macros for functions used to build the tree */
@@ -61,14 +61,35 @@ PvdStatsPanel::PvdStatsPanel(QWidget *parent, intf_thread_t *_p_intf, char *_pvd
     CREATE_CATEGORY(tput, qtr("Throughput"));
     CREATE_CATEGORY(rtt, qtr("Round-trip time"));
 
-    CREATE_AND_ADD_TO_CAT(tput_gen, qtr("General"), "", tput, qtr(""));
+    CREATE_AND_ADD_TO_CAT(tput_gen, qtr("In general"), "", tput, "");
     CREATE_AND_ADD_TO_CAT(tput_avg, qtr("Avg"), "0", tput_gen, qtr("Mb/s"));
     CREATE_AND_ADD_TO_CAT(tput_min, qtr("Min"), "0", tput_gen, qtr("Mb/s"));
     CREATE_AND_ADD_TO_CAT(tput_max, qtr("Max"), "0", tput_gen, qtr("Mb/s"));
 
-    CREATE_AND_ADD_TO_CAT(rtt_avg, qtr("Avg"), "0", rtt, qtr("s"));
-    CREATE_AND_ADD_TO_CAT(rtt_min, qtr("Min"), "0", rtt, qtr("s"));
-    CREATE_AND_ADD_TO_CAT(rtt_max, qtr("Max"), "0", rtt, qtr("s"));
+    CREATE_AND_ADD_TO_CAT(tput_dwn, qtr("Download"), "", tput, "");
+    CREATE_AND_ADD_TO_CAT(tput_dwn_avg, qtr("Avg"), "0", tput_dwn, qtr("Mb/s"));
+    CREATE_AND_ADD_TO_CAT(tput_dwn_min, qtr("Min"), "0", tput_dwn, qtr("Mb/s"));
+    CREATE_AND_ADD_TO_CAT(tput_dwn_max, qtr("Max"), "0", tput_dwn, qtr("Mb/s"));
+
+    CREATE_AND_ADD_TO_CAT(tput_up, qtr("Upload"), "", tput, "");
+    CREATE_AND_ADD_TO_CAT(tput_up_avg, qtr("Avg"), "0", tput_up, qtr("Mb/s"));
+    CREATE_AND_ADD_TO_CAT(tput_up_min, qtr("Min"), "0", tput_up, qtr("Mb/s"));
+    CREATE_AND_ADD_TO_CAT(tput_up_max, qtr("Max"), "0", tput_up, qtr("Mb/s"));
+
+    CREATE_AND_ADD_TO_CAT(rtt_gen, qtr("In general"), "", rtt, "");
+    CREATE_AND_ADD_TO_CAT(rtt_avg, qtr("Avg"), "0", rtt_gen, qtr("\u00B5s"));
+    CREATE_AND_ADD_TO_CAT(rtt_min, qtr("Min"), "0", rtt_gen, qtr("\u00B5s"));
+    CREATE_AND_ADD_TO_CAT(rtt_max, qtr("Max"), "0", rtt_gen, qtr("\u00B5s"));
+
+    CREATE_AND_ADD_TO_CAT(rtt_dwn, qtr("Download"), "", rtt, "");
+    CREATE_AND_ADD_TO_CAT(rtt_dwn_avg, qtr("Avg"), "0", rtt_dwn, qtr("\u00B5s"));
+    CREATE_AND_ADD_TO_CAT(rtt_dwn_min, qtr("Min"), "0", rtt_dwn, qtr("\u00B5s"));
+    CREATE_AND_ADD_TO_CAT(rtt_dwn_max, qtr("Max"), "0", rtt_dwn, qtr("\u00B5s"));
+
+    CREATE_AND_ADD_TO_CAT(rtt_up, qtr("Upload"), "", rtt, "");
+    CREATE_AND_ADD_TO_CAT(rtt_up_avg, qtr("Avg"), "0", rtt_up, qtr("\u00B5s"));
+    CREATE_AND_ADD_TO_CAT(rtt_up_min, qtr("Min"), "0", rtt_up, qtr("\u00B5s"));
+    CREATE_AND_ADD_TO_CAT(rtt_up_max, qtr("Max"), "0", rtt_up, qtr("\u00B5s"));
 
 #undef CREATE_AND_ADD_TO_CAT
 #undef CREATE_CATEGORY
@@ -89,15 +110,53 @@ void PvdStatsPanel::update_parse_json(const QJsonObject& json) {
 #define UPDATE_FLOAT( widget, format, calc... ) \
     { QString str; widget->setText( 1 , str.sprintf( format, ## calc ) );  }
 
-    //const char* stats_keys[3] = {"general", "upload", "download"};
+    const char* stats_keys[2] = {"tput", "rtt"};
+    const char* stats_subkeys[3] = {"general", "upload", "download"};
     const char* val_keys[3] = {"min", "max", "avg"};
-    QTreeWidgetItem* tput_widgets[3] = {tput_min, tput_max, tput_avg};
-    QTreeWidgetItem* rtt_widgets[3] = {rtt_min, rtt_max, rtt_avg};
+    QTreeWidgetItem* tput_widgets[3][3] = {
+            {tput_min, tput_max, tput_avg},
+            {tput_up_min, tput_up_max, tput_up_avg},
+            {tput_dwn_min, tput_dwn_max, tput_dwn_avg}
+    };
+    QTreeWidgetItem* rtt_widgets[3][3] = {
+            {rtt_min, rtt_max, rtt_avg},
+            {rtt_up_min, rtt_up_max, rtt_up_avg},
+            {rtt_dwn_min, rtt_dwn_max, rtt_dwn_avg}
+    };
     QJsonValue val;
+    QJsonObject stats_obj;
     QJsonObject obj;
+    QString key;
 
+    for (int i = 0; i < 2; ++i) {
+        key = QString(stats_keys[i]);
+        if (!json.contains(key))
+            continue;
+        stats_obj = json.value(key).toObject();
+        // iterate through general, upload and download statistics
+        for (int j = 0; j < 3; ++j) {
+            key = QString(stats_subkeys[j]);
+            if (!stats_obj.contains(key))
+                continue;
+            obj = stats_obj.value(key).toObject();
+            // get min, max and avg
+            for (int k = 0; k < 3; ++k) {
+                key = QString(val_keys[k]);
+                if (!obj.contains(key))
+                    continue;
+                val = obj.value(key);
+                if (i == 0) {
+                    UPDATE_FLOAT(tput_widgets[j][k], "%.6f", val.toDouble());
+                } else {
+                    UPDATE_FLOAT(rtt_widgets[j][k], "%.3f", val.toDouble() * 1000000); // print RTT in us
+                }
+            }
+        }
+    }
+
+    /*
     // update throughput information
-    QString key = QString("tput");
+    key = QString("tput");
     if (json.contains(key)) {
         obj = json.value(key).toObject();
         key = QString("general");
@@ -107,7 +166,6 @@ void PvdStatsPanel::update_parse_json(const QJsonObject& json) {
             key = QString(val_keys[i]);
             if (obj.contains(key)) {
                 val = obj.value(key);
-                std::cout << key.toStdString() << ": " << val.toDouble() << std::endl;
                 UPDATE_FLOAT(tput_widgets[i], "%.6f", val.toDouble());
             }
         }
@@ -122,9 +180,10 @@ void PvdStatsPanel::update_parse_json(const QJsonObject& json) {
         for (int i = 0; i < 3; ++i) {
             key = QString(val_keys[i]);
             val = obj.value(key);
-            UPDATE_FLOAT(rtt_widgets[i], "%.6f", val.toDouble());
+            UPDATE_FLOAT(rtt_widgets[i], "%.3f", val.toDouble() * 1000000); // print RTT in us
         }
     }
+     */
 
 #undef UPDATE_FLOAT
 }
