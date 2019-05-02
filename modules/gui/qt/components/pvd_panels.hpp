@@ -51,9 +51,12 @@ private:
     QTreeWidgetItem *rtt_up_max;
 
     std::string pvdname;
+    std::string exp_vals[6];
     static intf_thread_t *p_intf;
 
     void update_parse_json(const QJsonObject& json);
+    void get_extra_info();
+
 };
 
 #endif //VLC_QT_INFO_PANELS_H_

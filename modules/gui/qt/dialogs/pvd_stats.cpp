@@ -47,8 +47,8 @@ PvdStatsDialog::PvdStatsDialog(intf_thread_t *_p_intf) : QVLCFrame(_p_intf)
     free(pvd_list);
 
 
-    /*
-    // TODO: delete after testing
+
+    /* TODO: delete after testing
     panels.push_back(new PvdStatsPanel(pvdTabW, p_intf, "video.mpvd.io."));
     pvdTabW->addTab(panels[0], qtr("video.mpvd.io."));
     if (panels[0]->isVisible()) {
@@ -60,6 +60,7 @@ PvdStatsDialog::PvdStatsDialog(intf_thread_t *_p_intf) : QVLCFrame(_p_intf)
         std::cout << "panels[1] is visible" << std::endl;
     }
      */
+
 
     /* Close button creation */
     QPushButton *closeButton = new QPushButton(qtr("&Close"));

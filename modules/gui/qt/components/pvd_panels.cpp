@@ -3,6 +3,7 @@
 #include "qt.hpp"
 
 extern "C" {
+    #include <libpvd.h>
     #include <sys/types.h>
     #include <sys/socket.h>
     #include <sys/un.h>
@@ -20,6 +21,7 @@ extern "C" {
 
 
 #define SOCKET_FILE "/tmp/pvd-stats.uds"
+#define PVD_PORT 10101
 
 
 intf_thread_t* PvdStatsPanel::p_intf = NULL;
@@ -38,6 +40,8 @@ PvdStatsPanel::PvdStatsPanel(QWidget *parent, intf_thread_t *_p_intf, char *_pvd
     topLabel->setWordWrap(true);
     layout->addWidget(topLabel, 0, 0);
 
+    get_extra_info();
+
     /* Create tree containing the statistics */
     statsTree = new QTreeWidget(this);
     statsTree->setColumnCount(3);
@@ -54,42 +58,66 @@ PvdStatsPanel::PvdStatsPanel(QWidget *parent, intf_thread_t *_p_intf, char *_pvd
     catName->setExpanded(true);                                        \
     statsTree->addTopLevelItem(catName); }
 
-#define CREATE_AND_ADD_TO_CAT( itemName, itemText, itemValue, catName, unit ) { \
-    CREATE_TREE_ITEM( itemName, itemText, itemValue, unit );                   \
-    catName->addChild( itemName ); }
+#define CREATE_AND_ADD_TO_CAT(itemName, itemText, itemValue, catName, unit) { \
+    CREATE_TREE_ITEM(itemName, itemText, itemValue, unit);                   \
+    catName->addChild(itemName); }
 
     CREATE_CATEGORY(tput, qtr("Throughput"));
     CREATE_CATEGORY(rtt, qtr("Round-trip time"));
 
-    CREATE_AND_ADD_TO_CAT(tput_gen, qtr("In general"), "", tput, "");
+    if (exp_vals[0].empty()) {
+        CREATE_AND_ADD_TO_CAT(tput_gen, qtr("In general"), "", tput, "");
+    } else {
+        CREATE_AND_ADD_TO_CAT(tput_gen, qtr("In general"), "expected:", tput, exp_vals[0].c_str());
+    }
     CREATE_AND_ADD_TO_CAT(tput_avg, qtr("Avg"), "0", tput_gen, qtr("Mb/s"));
     CREATE_AND_ADD_TO_CAT(tput_min, qtr("Min"), "0", tput_gen, qtr("Mb/s"));
     CREATE_AND_ADD_TO_CAT(tput_max, qtr("Max"), "0", tput_gen, qtr("Mb/s"));
 
-    CREATE_AND_ADD_TO_CAT(tput_dwn, qtr("Download"), "", tput, "");
-    CREATE_AND_ADD_TO_CAT(tput_dwn_avg, qtr("Avg"), "0", tput_dwn, qtr("Mb/s"));
-    CREATE_AND_ADD_TO_CAT(tput_dwn_min, qtr("Min"), "0", tput_dwn, qtr("Mb/s"));
-    CREATE_AND_ADD_TO_CAT(tput_dwn_max, qtr("Max"), "0", tput_dwn, qtr("Mb/s"));
-
-    CREATE_AND_ADD_TO_CAT(tput_up, qtr("Upload"), "", tput, "");
+    if (exp_vals[1].empty()) {
+        CREATE_AND_ADD_TO_CAT(tput_up, qtr("Upload"), "", tput, "");
+    } else {
+        CREATE_AND_ADD_TO_CAT(tput_up, qtr("Upload"), "expected:", tput, exp_vals[1].c_str());
+    }
     CREATE_AND_ADD_TO_CAT(tput_up_avg, qtr("Avg"), "0", tput_up, qtr("Mb/s"));
     CREATE_AND_ADD_TO_CAT(tput_up_min, qtr("Min"), "0", tput_up, qtr("Mb/s"));
     CREATE_AND_ADD_TO_CAT(tput_up_max, qtr("Max"), "0", tput_up, qtr("Mb/s"));
 
-    CREATE_AND_ADD_TO_CAT(rtt_gen, qtr("In general"), "", rtt, "");
+    if (exp_vals[2].empty()) {
+        CREATE_AND_ADD_TO_CAT(tput_dwn, qtr("Download"), "", tput, "");
+    } else {
+        CREATE_AND_ADD_TO_CAT(tput_dwn, qtr("Download"), "expected:", tput, exp_vals[2].c_str());
+    }
+    CREATE_AND_ADD_TO_CAT(tput_dwn_avg, qtr("Avg"), "0", tput_dwn, qtr("Mb/s"));
+    CREATE_AND_ADD_TO_CAT(tput_dwn_min, qtr("Min"), "0", tput_dwn, qtr("Mb/s"));
+    CREATE_AND_ADD_TO_CAT(tput_dwn_max, qtr("Max"), "0", tput_dwn, qtr("Mb/s"));
+
+    if (exp_vals[3].empty()) {
+        CREATE_AND_ADD_TO_CAT(rtt_gen, qtr("In general"), "", rtt, "");
+    } else {
+        CREATE_AND_ADD_TO_CAT(rtt_gen, qtr("In general"), "expected:", rtt, exp_vals[3].c_str());
+    }
     CREATE_AND_ADD_TO_CAT(rtt_avg, qtr("Avg"), "0", rtt_gen, qtr("\u00B5s"));
     CREATE_AND_ADD_TO_CAT(rtt_min, qtr("Min"), "0", rtt_gen, qtr("\u00B5s"));
     CREATE_AND_ADD_TO_CAT(rtt_max, qtr("Max"), "0", rtt_gen, qtr("\u00B5s"));
 
-    CREATE_AND_ADD_TO_CAT(rtt_dwn, qtr("Download"), "", rtt, "");
-    CREATE_AND_ADD_TO_CAT(rtt_dwn_avg, qtr("Avg"), "0", rtt_dwn, qtr("\u00B5s"));
-    CREATE_AND_ADD_TO_CAT(rtt_dwn_min, qtr("Min"), "0", rtt_dwn, qtr("\u00B5s"));
-    CREATE_AND_ADD_TO_CAT(rtt_dwn_max, qtr("Max"), "0", rtt_dwn, qtr("\u00B5s"));
-
-    CREATE_AND_ADD_TO_CAT(rtt_up, qtr("Upload"), "", rtt, "");
+    if (exp_vals[4].empty()) {
+        CREATE_AND_ADD_TO_CAT(rtt_up, qtr("Upload"), "", rtt, "");
+    } else {
+        CREATE_AND_ADD_TO_CAT(rtt_up, qtr("Upload"), "expected:", rtt, exp_vals[4].c_str());
+    }
     CREATE_AND_ADD_TO_CAT(rtt_up_avg, qtr("Avg"), "0", rtt_up, qtr("\u00B5s"));
     CREATE_AND_ADD_TO_CAT(rtt_up_min, qtr("Min"), "0", rtt_up, qtr("\u00B5s"));
     CREATE_AND_ADD_TO_CAT(rtt_up_max, qtr("Max"), "0", rtt_up, qtr("\u00B5s"));
+
+    if (exp_vals[5].empty()) {
+        CREATE_AND_ADD_TO_CAT(rtt_dwn, qtr("Download"), "", rtt, "");
+    } else {
+        CREATE_AND_ADD_TO_CAT(rtt_dwn, qtr("Download"), "expected:", rtt, exp_vals[5].c_str());
+    }
+    CREATE_AND_ADD_TO_CAT(rtt_dwn_avg, qtr("Avg"), "0", rtt_dwn, qtr("\u00B5s"));
+    CREATE_AND_ADD_TO_CAT(rtt_dwn_min, qtr("Min"), "0", rtt_dwn, qtr("\u00B5s"));
+    CREATE_AND_ADD_TO_CAT(rtt_dwn_max, qtr("Max"), "0", rtt_dwn, qtr("\u00B5s"));
 
 #undef CREATE_AND_ADD_TO_CAT
 #undef CREATE_CATEGORY
@@ -145,45 +173,14 @@ void PvdStatsPanel::update_parse_json(const QJsonObject& json) {
                 if (!obj.contains(key))
                     continue;
                 val = obj.value(key);
-                if (i == 0) {
+                if (i == 0) { // update throughput
                     UPDATE_FLOAT(tput_widgets[j][k], "%.6f", val.toDouble());
-                } else {
+                } else { // update RTT
                     UPDATE_FLOAT(rtt_widgets[j][k], "%.3f", val.toDouble() * 1000000); // print RTT in us
                 }
             }
         }
     }
-
-    /*
-    // update throughput information
-    key = QString("tput");
-    if (json.contains(key)) {
-        obj = json.value(key).toObject();
-        key = QString("general");
-        obj = obj.value(key).toObject();
-
-        for (int i = 0; i < 3; ++i) {
-            key = QString(val_keys[i]);
-            if (obj.contains(key)) {
-                val = obj.value(key);
-                UPDATE_FLOAT(tput_widgets[i], "%.6f", val.toDouble());
-            }
-        }
-
-    }
-
-    // update RTT information
-    key = QString("rtt");
-    if (json.contains(key)) {
-        obj = json.value(key).toObject();
-        obj = obj.value(QString("general")).toObject();
-        for (int i = 0; i < 3; ++i) {
-            key = QString(val_keys[i]);
-            val = obj.value(key);
-            UPDATE_FLOAT(rtt_widgets[i], "%.3f", val.toDouble() * 1000000); // print RTT in us
-        }
-    }
-     */
 
 #undef UPDATE_FLOAT
 }
@@ -227,7 +224,7 @@ void PvdStatsPanel::update() {
     }
 
     if (!json_str.isEmpty()) {
-        std::cout << "pvd-stats answer:\n" << json_str.toStdString() << std::endl;
+        msg_Dbg(p_intf, "pvd-stats answer:\n%s", json_str.toStdString().c_str());
         // convert string to QJsonObject
         json_doc = QJsonDocument::fromJson(json_str.toUtf8());
         if ((!json_doc.isNull() && json_doc.isObject()))
@@ -242,5 +239,55 @@ void PvdStatsPanel::update() {
     }
     json_str.clear();
     close(sock);
+}
+
+void PvdStatsPanel::get_extra_info() {
+    t_pvd_connection *conn = pvd_connect(PVD_PORT);
+    char *extra_info;
+    QJsonObject json;
+    QJsonDocument json_doc;
+    QString key;
+    QJsonValue val;
+    const char *extra_info_keys[2][3] = {
+            {"tput", "tput_up", "tput_dwn"},
+            {"rtt", "rtt_up", "rtt_dwn"}
+    };
+
+    pvd_get_attribute_sync(conn, const_cast<char*>(pvdname.c_str()), const_cast<char*>("extraInfo"), &extra_info);
+    std::cout << "extra_info = \"" << extra_info << "\"" << std::endl;
+
+    if (strcmp(extra_info, "null\n") == 0) { // no extra info known to pvdd
+        msg_Warn(p_intf, "No additional information for the PvD \"%s\" known by pvdd.", pvdname.c_str());
+        delete extra_info;
+        pvd_disconnect(conn);
+        return;
+    }
+
+    // convert string to QJsonObject
+    json_doc = QJsonDocument::fromJson(QString(extra_info).toUtf8());
+    if ((!json_doc.isNull() && json_doc.isObject()))
+        json = json_doc.object();
+    else {
+        msg_Warn(p_intf, "pvdd didn't return a JSON object\nResponse:\n%s", extra_info);
+        delete extra_info;
+        pvd_disconnect(conn);
+        return;
+    }
+
+    for (int i = 0; i < 2; ++i) {
+        for (int j = 0; j < 3; ++j) {
+            key = QString(extra_info_keys[i][j]);
+            if (json.contains(key)) {
+                val = json.value(key);
+                if (val.type() == QJsonValue::String) {
+                    exp_vals[i*3+j] = val.toString().toStdString();
+                    continue;
+                }
+            }
+        }
+    }
+    
+    delete extra_info;
+    pvd_disconnect(conn);
 }
 
