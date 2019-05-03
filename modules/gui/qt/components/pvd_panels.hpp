@@ -17,6 +17,7 @@ public:
     PvdStatsPanel(QWidget *, intf_thread_t *, char *);
 
     void update();
+    void compare_stats_expected();
 
 
 private:
@@ -57,7 +58,6 @@ private:
     void update_parse_json(const QJsonObject& json);
     void get_extra_info();
     void parse_expected_values();
-    void compare_stats_expected();
 };
 
 #endif //VLC_QT_INFO_PANELS_H_

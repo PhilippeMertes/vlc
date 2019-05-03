@@ -29,7 +29,6 @@ PvdStatsDialog::PvdStatsDialog(intf_thread_t *_p_intf) : QVLCFrame(_p_intf)
 
     /* TabWidgets and Tabs creation, tabs named after PvDs */
     pvdTabW = new QTabWidget;
-    /* // TODO: uncomment after testing
     if(pvd_get_pvd_list_sync(conn, pvd_list)) {
         msg_Warn(p_intf, "Error on getting PvD list from daemon.\n"
                         "Make sure pvdd is running on port 10101.");
@@ -44,11 +43,10 @@ PvdStatsDialog::PvdStatsDialog(intf_thread_t *_p_intf) : QVLCFrame(_p_intf)
             pvdTabW->addTab(panels[i], qtr(pvdname));
         }
     }
-     */
 
     free(pvd_list);
 
-
+    /* TODO: remove after testing
     panels.push_back(new PvdStatsPanel(pvdTabW, p_intf, "video.mpvd.io."));
     pvdTabW->addTab(panels[0], qtr("video.mpvd.io."));
     if (panels[0]->isVisible()) {
@@ -59,6 +57,7 @@ PvdStatsDialog::PvdStatsDialog(intf_thread_t *_p_intf) : QVLCFrame(_p_intf)
     if (panels[1]->isVisible()) {
         std::cout << "panels[1] is visible" << std::endl;
     }
+     */
 
 
     /* Close button creation */
@@ -93,8 +92,9 @@ void *PvdStatsDialog::update_stats(void *args)
     while (1) {
         if ((idx = visible_panel()) >= 0) {
             panels[idx]->update();
+            panels[idx]->compare_stats_expected();
         }
-        sleep(5);
+        sleep(3);
     }
 }
 

@@ -41,14 +41,7 @@ PvdStatsPanel::PvdStatsPanel(QWidget *parent, intf_thread_t *_p_intf, char *_pvd
     topLabel->setWordWrap(true);
     layout->addWidget(topLabel, 0, 0);
 
-    //get_extra_info();
-
-    exp_str[0] = "952.6 Mbps";
-    exp_str[1] = "100 MB/s";
-    exp_str[2] = "89562.3 kbps";
-    exp_str[3] = "2 us";
-    exp_str[4] = "200 ms";
-    exp_str[5] = "1 sec";
+    get_extra_info();
     parse_expected_values();
 
     /* Create tree containing the statistics */
@@ -196,12 +189,10 @@ void PvdStatsPanel::update_parse_json(const QJsonObject& json) {
 
 
 void PvdStatsPanel::update() {
-    std::cout << "updating panel " << pvdname << std::endl;
     using ::close;
     int sock;
     struct sockaddr_un addr;
     std::string msg = "all " + pvdname;
-    std::cout << msg << std::endl;
     char resp[2048];
     QString json_str;
     QJsonObject json;
@@ -356,12 +347,68 @@ void PvdStatsPanel::parse_expected_values() {
         value = QString(value_str.c_str()).toDouble();
         // transform value corresponding to the unit
         exp_vals[i] = (i < 3) ? transform_to_mbps(value, unit) : transform_to_us(value, unit);
-        std::cout << "value = " << exp_str[i] << ", exp_vals = " << exp_vals[i] << std::endl;
     }
 }
 
 
 void PvdStatsPanel::compare_stats_expected() {
-    tput->setForeground(0, QBrush(Qt::red));
+    QTreeWidgetItem* tput_widgets[3][3] = {
+            {tput_min, tput_max, tput_avg},
+            {tput_up_min, tput_up_max, tput_up_avg},
+            {tput_dwn_min, tput_dwn_max, tput_dwn_avg}
+    };
+    QTreeWidgetItem* rtt_widgets[3][3] = {
+            {rtt_min, rtt_max, rtt_avg},
+            {rtt_up_min, rtt_up_max, rtt_up_avg},
+            {rtt_dwn_min, rtt_dwn_max, rtt_dwn_avg}
+    };
+    QTreeWidgetItem* main_widgets[6] = {
+            tput_gen, tput_up, tput_dwn,
+            rtt_gen, rtt_up, rtt_dwn
+    };
+    int cnt = 0;
+    double value;
+    QTreeWidgetItem *widget;
+
+    for (int i = 0; i < 6; ++i) {
+        if (!exp_vals[i])
+            continue;
+        cnt = 0;
+        // count all the values which are not as expected
+        for (int j = 0; j < 3; ++j) {
+            widget = (i < 3) ? tput_widgets[i][j] : rtt_widgets[i%3][j];
+            value = widget->text(1).toDouble();
+            if ((i < 3 && value < exp_vals[i]) || (i > 2 && value > exp_vals[i])) {
+                // value lower than expected, colour red
+                ++cnt;
+                widget->setForeground(0, QBrush(Qt::red));
+                widget->setForeground(1, QBrush(Qt::red));
+                widget->setForeground(2, QBrush(Qt::red));
+            } else {
+                // value as expected, colour green
+                widget->setForeground(0, QBrush(Qt::green));
+                widget->setForeground(1, QBrush(Qt::green));
+                widget->setForeground(2, QBrush(Qt::green));
+            }
+        }
+        // colour the text of the more general widget accordingly
+        widget = main_widgets[i];
+        switch (cnt) {
+            case 0:
+                widget->setForeground(0, QBrush(Qt::green));
+                break;
+
+            case 1:
+                widget->setForeground(0, QBrush(Qt::black));
+                break;
+
+            case 2:
+                widget->setForeground(0, QBrush(Qt::yellow));
+                break;
+
+            case 3:
+                widget->setForeground(0, QBrush(Qt::red));
+        }
+    }
 }
 
