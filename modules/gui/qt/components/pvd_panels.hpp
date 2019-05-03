@@ -35,7 +35,6 @@ private:
     QTreeWidgetItem *tput_up_min;
     QTreeWidgetItem *tput_up_max;
 
-
     QTreeWidgetItem *rtt;
     QTreeWidgetItem *rtt_gen;
     QTreeWidgetItem *rtt_avg;
@@ -51,12 +50,14 @@ private:
     QTreeWidgetItem *rtt_up_max;
 
     std::string pvdname;
-    std::string exp_vals[6];
+    std::string exp_str[6];
+    double exp_vals[6] = {};
     static intf_thread_t *p_intf;
 
     void update_parse_json(const QJsonObject& json);
     void get_extra_info();
-
+    void parse_expected_values();
+    void compare_stats_expected();
 };
 
 #endif //VLC_QT_INFO_PANELS_H_

@@ -18,6 +18,7 @@ extern "C" {
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMessageBox>
+#include <QBrush>
 
 
 #define SOCKET_FILE "/tmp/pvd-stats.uds"
@@ -40,7 +41,15 @@ PvdStatsPanel::PvdStatsPanel(QWidget *parent, intf_thread_t *_p_intf, char *_pvd
     topLabel->setWordWrap(true);
     layout->addWidget(topLabel, 0, 0);
 
-    get_extra_info();
+    //get_extra_info();
+
+    exp_str[0] = "952.6 Mbps";
+    exp_str[1] = "100 MB/s";
+    exp_str[2] = "89562.3 kbps";
+    exp_str[3] = "2 us";
+    exp_str[4] = "200 ms";
+    exp_str[5] = "1 sec";
+    parse_expected_values();
 
     /* Create tree containing the statistics */
     statsTree = new QTreeWidget(this);
@@ -65,55 +74,55 @@ PvdStatsPanel::PvdStatsPanel(QWidget *parent, intf_thread_t *_p_intf, char *_pvd
     CREATE_CATEGORY(tput, qtr("Throughput"));
     CREATE_CATEGORY(rtt, qtr("Round-trip time"));
 
-    if (exp_vals[0].empty()) {
+    if (exp_str[0].empty()) {
         CREATE_AND_ADD_TO_CAT(tput_gen, qtr("In general"), "", tput, "");
     } else {
-        CREATE_AND_ADD_TO_CAT(tput_gen, qtr("In general"), "expected:", tput, exp_vals[0].c_str());
+        CREATE_AND_ADD_TO_CAT(tput_gen, qtr("In general"), "expected:", tput, exp_str[0].c_str());
     }
     CREATE_AND_ADD_TO_CAT(tput_avg, qtr("Avg"), "0", tput_gen, qtr("Mb/s"));
     CREATE_AND_ADD_TO_CAT(tput_min, qtr("Min"), "0", tput_gen, qtr("Mb/s"));
     CREATE_AND_ADD_TO_CAT(tput_max, qtr("Max"), "0", tput_gen, qtr("Mb/s"));
 
-    if (exp_vals[1].empty()) {
+    if (exp_str[1].empty()) {
         CREATE_AND_ADD_TO_CAT(tput_up, qtr("Upload"), "", tput, "");
     } else {
-        CREATE_AND_ADD_TO_CAT(tput_up, qtr("Upload"), "expected:", tput, exp_vals[1].c_str());
+        CREATE_AND_ADD_TO_CAT(tput_up, qtr("Upload"), "expected:", tput, exp_str[1].c_str());
     }
     CREATE_AND_ADD_TO_CAT(tput_up_avg, qtr("Avg"), "0", tput_up, qtr("Mb/s"));
     CREATE_AND_ADD_TO_CAT(tput_up_min, qtr("Min"), "0", tput_up, qtr("Mb/s"));
     CREATE_AND_ADD_TO_CAT(tput_up_max, qtr("Max"), "0", tput_up, qtr("Mb/s"));
 
-    if (exp_vals[2].empty()) {
+    if (exp_str[2].empty()) {
         CREATE_AND_ADD_TO_CAT(tput_dwn, qtr("Download"), "", tput, "");
     } else {
-        CREATE_AND_ADD_TO_CAT(tput_dwn, qtr("Download"), "expected:", tput, exp_vals[2].c_str());
+        CREATE_AND_ADD_TO_CAT(tput_dwn, qtr("Download"), "expected:", tput, exp_str[2].c_str());
     }
     CREATE_AND_ADD_TO_CAT(tput_dwn_avg, qtr("Avg"), "0", tput_dwn, qtr("Mb/s"));
     CREATE_AND_ADD_TO_CAT(tput_dwn_min, qtr("Min"), "0", tput_dwn, qtr("Mb/s"));
     CREATE_AND_ADD_TO_CAT(tput_dwn_max, qtr("Max"), "0", tput_dwn, qtr("Mb/s"));
 
-    if (exp_vals[3].empty()) {
+    if (exp_str[3].empty()) {
         CREATE_AND_ADD_TO_CAT(rtt_gen, qtr("In general"), "", rtt, "");
     } else {
-        CREATE_AND_ADD_TO_CAT(rtt_gen, qtr("In general"), "expected:", rtt, exp_vals[3].c_str());
+        CREATE_AND_ADD_TO_CAT(rtt_gen, qtr("In general"), "expected:", rtt, exp_str[3].c_str());
     }
     CREATE_AND_ADD_TO_CAT(rtt_avg, qtr("Avg"), "0", rtt_gen, qtr("\u00B5s"));
     CREATE_AND_ADD_TO_CAT(rtt_min, qtr("Min"), "0", rtt_gen, qtr("\u00B5s"));
     CREATE_AND_ADD_TO_CAT(rtt_max, qtr("Max"), "0", rtt_gen, qtr("\u00B5s"));
 
-    if (exp_vals[4].empty()) {
+    if (exp_str[4].empty()) {
         CREATE_AND_ADD_TO_CAT(rtt_up, qtr("Upload"), "", rtt, "");
     } else {
-        CREATE_AND_ADD_TO_CAT(rtt_up, qtr("Upload"), "expected:", rtt, exp_vals[4].c_str());
+        CREATE_AND_ADD_TO_CAT(rtt_up, qtr("Upload"), "expected:", rtt, exp_str[4].c_str());
     }
     CREATE_AND_ADD_TO_CAT(rtt_up_avg, qtr("Avg"), "0", rtt_up, qtr("\u00B5s"));
     CREATE_AND_ADD_TO_CAT(rtt_up_min, qtr("Min"), "0", rtt_up, qtr("\u00B5s"));
     CREATE_AND_ADD_TO_CAT(rtt_up_max, qtr("Max"), "0", rtt_up, qtr("\u00B5s"));
 
-    if (exp_vals[5].empty()) {
+    if (exp_str[5].empty()) {
         CREATE_AND_ADD_TO_CAT(rtt_dwn, qtr("Download"), "", rtt, "");
     } else {
-        CREATE_AND_ADD_TO_CAT(rtt_dwn, qtr("Download"), "expected:", rtt, exp_vals[5].c_str());
+        CREATE_AND_ADD_TO_CAT(rtt_dwn, qtr("Download"), "expected:", rtt, exp_str[5].c_str());
     }
     CREATE_AND_ADD_TO_CAT(rtt_dwn_avg, qtr("Avg"), "0", rtt_dwn, qtr("\u00B5s"));
     CREATE_AND_ADD_TO_CAT(rtt_dwn_min, qtr("Min"), "0", rtt_dwn, qtr("\u00B5s"));
@@ -280,7 +289,7 @@ void PvdStatsPanel::get_extra_info() {
             if (json.contains(key)) {
                 val = json.value(key);
                 if (val.type() == QJsonValue::String) {
-                    exp_vals[i*3+j] = val.toString().toStdString();
+                    exp_str[i*3+j] = val.toString().toStdString();
                     continue;
                 }
             }
@@ -289,5 +298,70 @@ void PvdStatsPanel::get_extra_info() {
     
     delete extra_info;
     pvd_disconnect(conn);
+}
+
+
+double transform_to_mbps(double& value, const std::string& unit) {
+    switch (unit[0]) {
+        case 'G':
+            value *= 1000;
+            break;
+
+        case 'k':
+        case 'K':
+            value /= 1000;
+            break;
+
+        case 'b':
+            value /= 1000000;
+            return value;
+
+        case 'B':
+            value *= 8;
+            value /= 1000000;
+            return value;
+    }
+
+    return (unit[1] == 'B') ? value * 8 : value;
+}
+
+double transform_to_us(double& value, const std::string& unit) {
+    switch (unit[0]) {
+        case 's':
+            value *= 1000000;
+            break;
+
+        case 'm':
+            value *= 1000;
+            break;
+
+        case 'n':
+            value /= 1000;
+    }
+    return value;
+}
+
+
+void PvdStatsPanel::parse_expected_values() {
+    double value;
+    std::string value_str;
+    std::string unit;
+
+    for (int i = 0; i < 6; ++i) {
+        if (exp_str[i].empty())
+            continue;
+        // get value and unit substrings
+        value_str = exp_str[i].substr(0, exp_str[i].find(" "));
+        unit = exp_str[i].substr(exp_str[i].find(" ")+1);
+        value = QString(value_str.c_str()).toDouble();
+        // transform value corresponding to the unit
+        exp_vals[i] = (i < 3) ? transform_to_mbps(value, unit) : transform_to_us(value, unit);
+        std::cout << "value = " << exp_str[i] << ", exp_vals = " << exp_vals[i] << std::endl;
+    }
+}
+
+
+void PvdStatsPanel::compare_stats_expected() {
+    tput->setForeground(0, QBrush(Qt::red));
 }
 
