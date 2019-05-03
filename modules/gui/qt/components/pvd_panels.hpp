@@ -18,6 +18,7 @@ public:
 
     void update();
     void compare_stats_expected();
+    bool bind_to_pvd();
 
 
 private:

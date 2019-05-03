@@ -28,6 +28,7 @@ private:
 
 private slots:
     friend class Singleton<PvdStatsDialog>;
+    void bind_to_pvd();
 
 };
 

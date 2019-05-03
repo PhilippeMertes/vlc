@@ -457,7 +457,6 @@ static int vlclua_net_pvd_show( lua_State *L )
 
 static int vlclua_net_pvd_set( lua_State *L )
 {
-
     char *pvdname = luaL_checkstring(L, 1);
     lua_pushstring(L, pvdname);
 

@@ -412,3 +412,27 @@ void PvdStatsPanel::compare_stats_expected() {
     }
 }
 
+bool PvdStatsPanel::bind_to_pvd() {
+    char proc_pvd[256];
+
+    // bind the process to the PvD
+    proc_bind_to_pvd(const_cast<char*>(pvdname.c_str()));
+
+    // check if process successfully bound
+    proc_get_bound_pvd(proc_pvd);
+    if(strcmp(proc_pvd, pvdname.c_str()) == 0) {
+        QMessageBox::information(this, "Successful PvD binding", "Process is successfully bound to the PvD");
+    }
+    else {
+        if(proc_bind_to_nopvd() < 0) {
+            QMessageBox::critical(this, "Failed binding to PvD",
+                    "Process failed binding to PvD and as well failed unbinding.");
+            return false;
+        }
+        else {
+            QMessageBox::warning(this, "Failed binding to PvD",
+                    "Process failed binding to the PvD, thus remains unbound to any PvD.");
+        }
+    }
+    return true;
+}

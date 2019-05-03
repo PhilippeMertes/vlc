@@ -63,13 +63,18 @@ PvdStatsDialog::PvdStatsDialog(intf_thread_t *_p_intf) : QVLCFrame(_p_intf)
     /* Close button creation */
     QPushButton *closeButton = new QPushButton(qtr("&Close"));
     closeButton->setDefault(true);
+    BUTTONACT(closeButton, close());
+
+    /* Bind to PvD button creation */
+    QPushButton *bindButton = new QPushButton(qtr("&Bind"));
+    bindButton->setDefault(true);
+    BUTTONACT(bindButton, bind_to_pvd());
 
     /* Configure window layout */
     QGridLayout *layout = new QGridLayout(this);
     layout->addWidget(pvdTabW, 0, 0, 1, 8);
+    layout->addWidget(bindButton, 1, 6);
     layout->addWidget(closeButton, 1, 7);
-
-    BUTTONACT(closeButton, close());
 
     restoreWidgetPosition("PvdStats", QSize(600, 480));
 
@@ -104,4 +109,10 @@ int PvdStatsDialog::visible_panel() {
             return i;
     }
     return -1;
+}
+
+void PvdStatsDialog::bind_to_pvd() {
+    int idx;
+    if ((idx = visible_panel()) >= 0)
+        panels[idx]->bind_to_pvd();
 }
