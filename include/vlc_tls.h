@@ -484,6 +484,8 @@ VLC_API int vlc_tls_BindToPvd(const char *pvdname);
 
 VLC_API VLC_MALLOC char *vlc_tls_GetCurrentPvd();
 
+VLC_API void vlc_tls_SetPreferredPvd(const char *pvdname);
+
 /** @} */
 
 #endif

@@ -16,6 +16,7 @@ extern "C" {
 #include <QLineEdit>
 
 QVector<PvdStatsPanel*> PvdStatsDialog::panels = QVector<PvdStatsPanel*>();
+QLineEdit *PvdStatsDialog::currPvdLine = NULL;
 
 PvdStatsDialog::PvdStatsDialog(intf_thread_t *_p_intf) : QVLCFrame(_p_intf)
 {
@@ -106,13 +107,18 @@ PvdStatsDialog::~PvdStatsDialog()
 void *PvdStatsDialog::update_stats(void *args)
 {
     int idx;
+    char *curr_pvd;
 
     while (1) {
+        // update statistics for the visible panel
         if ((idx = visible_panel()) >= 0) {
             panels[idx]->update();
             panels[idx]->compare_stats_expected();
         }
-        sleep(3);
+        curr_pvd = vlc_tls_GetCurrentPvd();
+        currPvdLine->setText(curr_pvd);
+        free(curr_pvd);
+        sleep(1);
     }
 }
 
@@ -131,6 +137,9 @@ void PvdStatsDialog::bind_to_pvd() {
         switch (vlc_tls_BindToPvd(pvdname.c_str())) {
             case 0:
                 QMessageBox::information(this, "Successful PvD binding", "Process is successfully bound to the PvD");
+                currPvdLine->setText(pvdname.c_str());
+                if (QMessageBox::question(this, "Set as preferred", "Do you want to set this PvD as your preferred?"))
+                    vlc_tls_SetPreferredPvd(pvdname.c_str());
                 break;
 
             case 1:

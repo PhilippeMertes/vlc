@@ -254,7 +254,6 @@ void PvdStatsPanel::get_extra_info() {
     };
 
     pvd_get_attribute_sync(conn, const_cast<char*>(pvdname.c_str()), const_cast<char*>("extraInfo"), &extra_info);
-    std::cout << "extra_info = \"" << extra_info << "\"" << std::endl;
 
     if (strcmp(extra_info, "null\n") == 0) { // no extra info known to pvdd
         msg_Warn(p_intf, "No additional information for the PvD \"%s\" known by pvdd.", pvdname.c_str());
@@ -379,7 +378,7 @@ void PvdStatsPanel::compare_stats_expected() {
             widget = (i < 3) ? tput_widgets[i][j] : rtt_widgets[i%3][j];
             value = widget->text(1).toDouble();
             if ((i < 3 && value < exp_vals[i]) || (i > 2 && value > exp_vals[i])) {
-                // value lower than expected, colour red
+                // value lower/higher than expected, colour red
                 ++cnt;
                 widget->setForeground(0, QBrush(Qt::red));
                 widget->setForeground(1, QBrush(Qt::red));
@@ -403,7 +402,7 @@ void PvdStatsPanel::compare_stats_expected() {
                 break;
 
             case 2:
-                widget->setForeground(0, QBrush(Qt::yellow));
+                widget->setForeground(0, QBrush(QColor("orange")));
                 break;
 
             case 3:
@@ -411,33 +410,6 @@ void PvdStatsPanel::compare_stats_expected() {
         }
     }
 }
-
-/*
-bool PvdStatsPanel::bind_to_pvd() {
-    char proc_pvd[256];
-
-    // bind the process to the PvD
-    proc_bind_to_pvd(const_cast<char*>(pvdname.c_str()));
-
-    // check if process successfully bound
-    proc_get_bound_pvd(proc_pvd);
-    if(strcmp(proc_pvd, pvdname.c_str()) == 0) {
-        QMessageBox::information(this, "Successful PvD binding", "Process is successfully bound to the PvD");
-    }
-    else {
-        if(proc_bind_to_nopvd() < 0) {
-            QMessageBox::critical(this, "Failed binding to PvD",
-                    "Process failed binding to PvD and as well failed unbinding.");
-            return false;
-        }
-        else {
-            QMessageBox::warning(this, "Failed binding to PvD",
-                    "Process failed binding to the PvD, thus remains unbound to any PvD.");
-        }
-    }
-    return true;
-}
- */
 
 std::string PvdStatsPanel::get_pvdname() {
     return pvdname;

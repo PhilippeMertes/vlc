@@ -18,7 +18,6 @@ public:
 
     void update();
     void compare_stats_expected();
-    //bool bind_to_pvd();
     std::string get_pvdname();
 
 private:

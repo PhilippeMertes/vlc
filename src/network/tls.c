@@ -222,6 +222,10 @@ vlc_tls_t *vlc_tls_ServerSessionCreate(vlc_tls_server_t *crd,
     return session;
 }
 
+// variables holding current and preferred provisioning domains
+static char *curr_pvd = NULL;
+static char *pref_pvd = NULL;
+
 vlc_tls_t *vlc_tls_SocketOpenTLS(vlc_tls_client_t *creds, const char *name,
                                  unsigned port, const char *service,
                                  const char *const *alpn, char **alp)
@@ -233,8 +237,8 @@ vlc_tls_t *vlc_tls_SocketOpenTLS(vlc_tls_client_t *creds, const char *name,
     }, *res;
 
 #ifndef _WIN32
-    if (creds->url_pvds) {
-        msg_Dbg(creds, "creds->url_pvds != NULL");
+    if (creds->url_pvds && !pref_pvd) {
+        msg_Dbg(creds, "trying to bind to preconfigured PvD");
 
         // check for preferred default PvD
         char *def_pvd = NULL;
@@ -272,10 +276,11 @@ vlc_tls_t *vlc_tls_SocketOpenTLS(vlc_tls_client_t *creds, const char *name,
                     pvd = vlc_array_item_at_index(pvd_arr, index);
                 }
 
-                proc_bind_to_pvd(strdup(pvd));
-                char proc_pvd[256];
-                proc_get_bound_pvd(proc_pvd);
-                msg_Dbg(creds, "Process bound to PvD: %s", proc_pvd);
+                // binding process to PvD
+                if (vlc_tls_BindToPvd(pvd))
+                    msg_Dbg(creds, "Unable to bind process to PvD \"%s\"", pvd);
+                else
+                    msg_Dbg(creds, "Process bound to PvD: %s", pvd);
                 break;
             }
         }
@@ -318,8 +323,6 @@ vlc_tls_t *vlc_tls_SocketOpenTLS(vlc_tls_client_t *creds, const char *name,
     return NULL;
 }
 
-static char *curr_pvd = NULL;
-
 int vlc_tls_BindToPvd(const char *pvdname) {
     char proc_pvd[256];
 
@@ -339,4 +342,10 @@ int vlc_tls_BindToPvd(const char *pvdname) {
 
 char *vlc_tls_GetCurrentPvd() {
     return (curr_pvd) ? strdup(curr_pvd) : NULL;
+}
+
+
+void vlc_tls_SetPreferredPvd(const char *pvdname) {
+    free(pref_pvd);
+    pref_pvd = strdup(pvdname);
 }

@@ -27,7 +27,7 @@ private:
     static int visible_panel();
     static void *update_stats(void *args);
 
-    QLineEdit *currPvdLine;
+    static QLineEdit *currPvdLine;
 
 private slots:
     friend class Singleton<PvdStatsDialog>;

@@ -448,6 +448,7 @@ text_segment_ruby_New
 text_segment_ruby_ChainDelete
 vlc_tls_BindToPvd
 vlc_tls_GetCurrentPvd
+vlc_tls_SetPreferredPvd
 vlc_tls_ClientCreate
 vlc_tls_ClientDelete
 vlc_tls_ClientSessionCreate

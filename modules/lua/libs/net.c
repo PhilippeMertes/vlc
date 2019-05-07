@@ -458,33 +458,13 @@ static int vlclua_net_pvd_show( lua_State *L )
 
 static int vlclua_net_pvd_set( lua_State *L )
 {
-    /*char *pvdname = luaL_checkstring(L, 1);
-    lua_pushstring(L, pvdname);
-
-    char proc_pvd[256];
-    proc_bind_to_pvd(pvdname);
-    proc_get_bound_pvd(proc_pvd);
-
-    if(strcmp(proc_pvd, pvdname) == 0) {
-        lua_pushstring(L, "Process is successfully bound to the PvD");
-    }
-    else {
-        if(proc_bind_to_nopvd() < 0) {
-            lua_pushstring(L, "Process failed binding to PvD and as well failed unbinding.");
-            return 0;
-        }
-        else {
-            lua_pushstring(L, "Process failed binding to the PvD, thus remains unbound to any PvD.");
-        }
-    }
-    return 1;
-     */
     char *pvdname = luaL_checkstring(L, 1);
     lua_pushstring(L, pvdname);
 
     switch (vlc_tls_BindToPvd(pvdname)) {
         case 0:
             lua_pushstring(L, "Process is successfully bound to the PvD");
+            vlc_tls_SetPreferredPvd(pvdname);
             break;
 
         case 1:
@@ -502,7 +482,7 @@ static int vlclua_net_pvd_get(lua_State *L)
 {
     char *pvdname = vlc_tls_GetCurrentPvd();
     if (!pvdname)
-        pvdname = "VLC not bound to a PvD yet.";
+        pvdname = "VLC not bound to any PvD yet.";
     lua_pushstring(L, pvdname);
     return 1;
 }
