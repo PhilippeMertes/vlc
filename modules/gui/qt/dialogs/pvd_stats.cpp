@@ -93,6 +93,7 @@ PvdStatsDialog::PvdStatsDialog(intf_thread_t *_p_intf) : QVLCFrame(_p_intf)
     restoreWidgetPosition("PvdStats", QSize(600, 480));
 
     /* start thread handling connection with pvd-stats */
+    qRegisterMetaType<QVector<int> >("int_vector"); // needed, or else we get error messages during thread creation
     if(vlc_clone(&pvd_stats_th, update_stats, NULL, VLC_THREAD_PRIORITY_LOW)) {
         msg_Err(p_intf, "Unable to create thread polling PvD statistics");
         QMessageBox::critical(this, "Error on thread creation", "Unable to create thread polling PvD statistics");
