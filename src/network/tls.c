@@ -317,3 +317,26 @@ vlc_tls_t *vlc_tls_SocketOpenTLS(vlc_tls_client_t *creds, const char *name,
     freeaddrinfo(res);
     return NULL;
 }
+
+static char *curr_pvd = NULL;
+
+int vlc_tls_BindToPvd(const char *pvdname) {
+    char proc_pvd[256];
+
+    // bind the process to the PvD
+    proc_bind_to_pvd(pvdname);
+
+    // check if process successfully bound
+    proc_get_bound_pvd(proc_pvd);
+    if(strcmp(proc_pvd, pvdname) == 0) {
+        free(curr_pvd);
+        curr_pvd = strdup(pvdname);
+        return 0;
+    }
+    else
+        return (proc_bind_to_nopvd() >= 0) ? 1 : 2;
+}
+
+char *vlc_tls_GetCurrentPvd() {
+    return (curr_pvd) ? strdup(curr_pvd) : NULL;
+}

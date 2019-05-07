@@ -412,6 +412,7 @@ void PvdStatsPanel::compare_stats_expected() {
     }
 }
 
+/*
 bool PvdStatsPanel::bind_to_pvd() {
     char proc_pvd[256];
 
@@ -435,4 +436,9 @@ bool PvdStatsPanel::bind_to_pvd() {
         }
     }
     return true;
+}
+ */
+
+std::string PvdStatsPanel::get_pvdname() {
+    return pvdname;
 }

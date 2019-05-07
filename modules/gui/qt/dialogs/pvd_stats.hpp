@@ -6,6 +6,7 @@
 #include "util/singleton.hpp"
 
 class QTabWidget;
+class QLineEdit;
 
 //Inspired by MediaInfoDialog class
 class PvdStatsDialog : public QVLCFrame, public Singleton<PvdStatsDialog>
@@ -25,6 +26,8 @@ private:
 
     static int visible_panel();
     static void *update_stats(void *args);
+
+    QLineEdit *currPvdLine;
 
 private slots:
     friend class Singleton<PvdStatsDialog>;
