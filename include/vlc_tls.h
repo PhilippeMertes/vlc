@@ -480,10 +480,6 @@ VLC_API vlc_tls_t *vlc_tls_SocketOpenTLS(vlc_tls_client_t *crd,
                                          const char *service,
                                          const char *const *alpn, char **alp);
 
-VLC_API int vlc_tls_BindToPvd(const char *pvdname);
-
-VLC_API VLC_MALLOC char *vlc_tls_GetCurrentPvd();
-
 VLC_API void vlc_tls_SetPreferredPvd(const char *pvdname);
 
 /** @} */

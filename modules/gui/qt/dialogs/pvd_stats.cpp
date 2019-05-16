@@ -3,6 +3,7 @@
 extern "C" {
     #include <libpvd.h>
     #include <vlc_tls.h>
+    #include <vlc_network.h>
 }
 
 #include <iostream>
@@ -66,7 +67,7 @@ PvdStatsDialog::PvdStatsDialog(intf_thread_t *_p_intf) : QVLCFrame(_p_intf)
 
     // get and print the PvD the process is currently bound to
     QLabel *currPvdLabel = new QLabel(qtr("Current Pvd:"));
-    pvdname = vlc_tls_GetCurrentPvd();
+    pvdname = vlc_GetCurrentPvd();
     currPvdLine = new QLineEdit;
     currPvdLine->setReadOnly(true);
     currPvdLine->setText(pvdname);
@@ -116,7 +117,7 @@ void *PvdStatsDialog::update_stats(void *args)
             panels[idx]->update();
             panels[idx]->compare_stats_expected();
         }
-        curr_pvd = vlc_tls_GetCurrentPvd();
+        curr_pvd = vlc_GetCurrentPvd();
         currPvdLine->setText(curr_pvd);
         free(curr_pvd);
         sleep(1);
@@ -135,7 +136,7 @@ void PvdStatsDialog::bind_to_pvd() {
     int idx;
     if ((idx = visible_panel()) >= 0) {
         std::string pvdname = panels[idx]->get_pvdname();
-        switch (vlc_tls_BindToPvd(pvdname.c_str())) {
+        switch (vlc_BindToPvd(pvdname.c_str())) {
             case 0:
                 QMessageBox::information(this, "Successful PvD binding", "Process is successfully bound to the PvD");
                 currPvdLine->setText(pvdname.c_str());

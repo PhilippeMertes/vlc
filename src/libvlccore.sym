@@ -446,8 +446,8 @@ text_segment_Copy
 text_segment_FromRuby
 text_segment_ruby_New
 text_segment_ruby_ChainDelete
-vlc_tls_BindToPvd
-vlc_tls_GetCurrentPvd
+vlc_BindToPvd
+vlc_GetCurrentPvd
 vlc_tls_SetPreferredPvd
 vlc_tls_ClientCreate
 vlc_tls_ClientDelete

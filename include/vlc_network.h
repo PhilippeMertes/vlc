@@ -280,6 +280,10 @@ static inline int net_GetPeerAddress( int fd, char *address, int *port )
 
 VLC_API char *vlc_getProxyUrl(const char *);
 
+VLC_API int vlc_BindToPvd(const char *pvdname);
+
+VLC_API VLC_MALLOC char *vlc_GetCurrentPvd();
+
 # ifdef __cplusplus
 }
 # endif

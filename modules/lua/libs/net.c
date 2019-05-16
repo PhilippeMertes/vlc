@@ -461,7 +461,7 @@ static int vlclua_net_pvd_set( lua_State *L )
     char *pvdname = luaL_checkstring(L, 1);
     lua_pushstring(L, pvdname);
 
-    switch (vlc_tls_BindToPvd(pvdname)) {
+    switch (vlc_BindToPvd(pvdname)) {
         case 0:
             lua_pushstring(L, "Process is successfully bound to the PvD");
             vlc_tls_SetPreferredPvd(pvdname);
@@ -480,7 +480,7 @@ static int vlclua_net_pvd_set( lua_State *L )
 
 static int vlclua_net_pvd_get(lua_State *L)
 {
-    char *pvdname = vlc_tls_GetCurrentPvd();
+    char *pvdname = vlc_GetCurrentPvd();
     if (!pvdname)
         pvdname = "VLC not bound to any PvD yet.";
     lua_pushstring(L, pvdname);

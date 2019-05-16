@@ -47,6 +47,7 @@
 #include <vlc_tls.h>
 #include <vlc_modules.h>
 #include <vlc_interrupt.h>
+#include <vlc_network.h>
 
 /*** TLS credentials ***/
 
@@ -158,6 +159,7 @@ vlc_tls_t *vlc_tls_ClientSessionCreate(vlc_tls_client_t *crd, vlc_tls_t *sock,
                                        const char *host, const char *service,
                                        const char *const *alpn, char **alp)
 {
+
     int val;
     int canc = vlc_savecancel();
     vlc_tls_t *session = crd->ops->open(crd, sock, host, alpn);
@@ -222,8 +224,7 @@ vlc_tls_t *vlc_tls_ServerSessionCreate(vlc_tls_server_t *crd,
     return session;
 }
 
-// variables holding current and preferred provisioning domains
-static char *curr_pvd = NULL;
+// variable holding preferred provisioning domain
 static char *pref_pvd = NULL;
 
 vlc_tls_t *vlc_tls_SocketOpenTLS(vlc_tls_client_t *creds, const char *name,
@@ -277,7 +278,7 @@ vlc_tls_t *vlc_tls_SocketOpenTLS(vlc_tls_client_t *creds, const char *name,
                 }
 
                 // binding process to PvD
-                if (vlc_tls_BindToPvd(pvd))
+                if (vlc_BindToPvd(pvd))
                     msg_Dbg(creds, "Unable to bind process to PvD \"%s\"", pvd);
                 else
                     msg_Dbg(creds, "Process bound to PvD: %s", pvd);
@@ -321,27 +322,6 @@ vlc_tls_t *vlc_tls_SocketOpenTLS(vlc_tls_client_t *creds, const char *name,
     /* Failure! */
     freeaddrinfo(res);
     return NULL;
-}
-
-int vlc_tls_BindToPvd(const char *pvdname) {
-    char proc_pvd[256];
-
-    // bind the process to the PvD
-    proc_bind_to_pvd(pvdname);
-
-    // check if process successfully bound
-    proc_get_bound_pvd(proc_pvd);
-    if(strcmp(proc_pvd, pvdname) == 0) {
-        free(curr_pvd);
-        curr_pvd = strdup(pvdname);
-        return 0;
-    }
-    else
-        return (proc_bind_to_nopvd() >= 0) ? 1 : 2;
-}
-
-char *vlc_tls_GetCurrentPvd() {
-    return (curr_pvd) ? strdup(curr_pvd) : NULL;
 }
 
 
