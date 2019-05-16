@@ -37,9 +37,8 @@
 #ifndef SOL_TCP
 # define SOL_TCP IPPROTO_TCP
 #endif
-#ifndef _WIN32
 #include <libpvd.h>
-#endif
+#include <regex.h>
 
 #include <vlc_common.h>
 #include "libvlc.h"
@@ -48,6 +47,7 @@
 #include <vlc_modules.h>
 #include <vlc_interrupt.h>
 #include <vlc_network.h>
+#include <vlc_fs.h>
 
 /*** TLS credentials ***/
 
@@ -110,6 +110,149 @@ void vlc_tls_ServerDelete(vlc_tls_server_t *crd)
     vlc_object_delete(crd);
 }
 
+int vlc_tls_pvd_parse_list(vlc_tls_client_t *crd, vlc_array_t *pvds,
+                          regex_t re_pvd, char *pvd_list)
+{
+    regmatch_t rm[2];
+    int ret = regexec(&re_pvd, pvd_list, 2, &rm, 0);
+    char matchstr[128];
+    char errbuf[128];
+    int start;
+    int end;
+
+    while (!ret) {
+        start = (int) rm[1].rm_so;
+        if (start == -1) {
+            msg_Err(crd, "unable to parse PvDs from config file");
+            return VLC_EGENERIC;
+        }
+        end = (int) rm[1].rm_eo;
+
+        memcpy(matchstr, pvd_list+start, end-start);
+        // add dot at the end if not specified
+        if (matchstr[end-start-1] != '.') {
+            matchstr[end-start] = '.';
+            matchstr[end-start+1] = '\0';
+        }
+        else
+            matchstr[end-start] = '\0';
+        vlc_array_append(pvds, strdup(matchstr));
+
+        // strip matched bit and try finding next matches
+        strcpy(pvd_list, &pvd_list[end]);
+        ret = regexec(&re_pvd, pvd_list, 2, &rm, 0);
+    }
+
+    if (ret != REG_NOMATCH) {
+        regerror(ret, &re_pvd, errbuf, sizeof(errbuf));
+        msg_Err(crd, "regexec error while parsing PvDs: %s", errbuf);
+        return VLC_EGENERIC;
+    }
+
+    return VLC_SUCCESS;
+}
+
+
+int vlc_tls_pvd_parse_line(vlc_tls_client_t *crd, vlc_dictionary_t *url_pvds,
+                          regex_t re_line, regex_t re_pvd, const char* line)
+{
+    regmatch_t rm[3];
+    int ret = regexec(&re_line, line, 3, &rm, 0);
+    char matchstr[1024];
+    char errbuf[128];
+    int start;
+    int end;
+    if (!ret) {
+        // parse URL
+        start = (int) rm[1].rm_so;
+        if (start == -1) {
+            msg_Err(crd, "Wrong syntax in PvD config file.\n"
+                         "Usage: \"url\": [\"pvd1\", \"pvd2\", ...]");
+            return VLC_EGENERIC;
+        }
+        end = (int) rm[1].rm_eo;
+        memcpy(matchstr, line+start, end-start);
+        matchstr[end-start] = '\0';
+        char *url = strdup(matchstr);
+
+        // retrieve PvDs
+        start = (int) rm[2].rm_so;
+        if (start == -1) {
+            msg_Err(crd, "Wrong syntax in PvD config file.\n"
+                         "Usage: \"url\": [\"pvd1\", \"pvd2\", ...]");
+            return VLC_EGENERIC;
+        }
+        end = (int) rm[2].rm_eo;
+        memcpy(matchstr, line+start, end-start);
+        matchstr[end-start] = '\0';
+
+        // initialize dynamic array containing PvDs
+        vlc_array_t *pvds = malloc(sizeof(vlc_array_t));
+        vlc_array_init(pvds);
+
+        // parse PvDs
+        if (vlc_tls_pvd_parse_list(crd, pvds, re_pvd, strdup(matchstr)) != VLC_SUCCESS) {
+            msg_Err(crd, "Unable to parse PvDs from config file.\n"
+                         "Please only use valid PvD domain names.");
+            free(url);
+            return VLC_EGENERIC;
+        }
+
+        vlc_dictionary_insert(url_pvds, url, pvds);
+        msg_Dbg(crd, "PvDs matching entry added for URL: %s", url);
+        free(url);
+    }
+    else if (ret == REG_NOMATCH) {
+        msg_Dbg(crd, "regex: no match in line: %s", line);
+    }
+    else {
+        regerror(ret, &re_line, errbuf, sizeof(errbuf));
+        msg_Err(crd, "regexec error while line parsing: %s", errbuf);
+        return VLC_EGENERIC;
+    }
+    return VLC_SUCCESS;
+}
+
+int vlc_tls_pvd_parse_config(vlc_tls_client_t *crd, vlc_dictionary_t *url_pvds,
+                            const char *config_file) {
+    vlc_dictionary_init(url_pvds, 0);
+    if (config_file) {
+        FILE *pvd_file = vlc_fopen(config_file, "r");
+        if (!pvd_file) {
+            msg_Err(crd, "Unable to open PvD config file");
+            return VLC_EGENERIC;
+        }
+
+        char *line = NULL;
+        size_t len = 1024;
+        // compile regular expressions
+        regex_t re_line;
+        regex_t re_pvd;
+        if (regcomp(&re_line, "\"([^\"]+)\"\\s*:\\s*(\\[?\"[^\\n]+\"\\]?)", REG_EXTENDED) ||
+            regcomp(&re_pvd, "\"([a-zA-Z0-9\\.]+)\"", REG_EXTENDED)) {
+            msg_Err(crd, "Could not compile one of the regular expressions.");
+            return VLC_EGENERIC;
+        }
+
+        while (getline(&line, &len, pvd_file) != -1) {
+            if (vlc_tls_pvd_parse_line(crd, url_pvds, re_line, re_pvd, line) != VLC_SUCCESS) {
+                return VLC_EGENERIC;
+            }
+        }
+        regfree(&re_line);
+        free(line);
+        fclose(pvd_file);
+        msg_Dbg(crd, "Number of keys: %d", vlc_dictionary_keys_count(url_pvds));
+    }
+    return VLC_SUCCESS;
+}
+
+static void vlc_tls_clear_array(void *p_item, void *p_obj)
+{
+    VLC_UNUSED(p_obj);
+    vlc_array_clear(p_item);
+}
+
 vlc_tls_client_t *vlc_tls_ClientCreate(vlc_object_t *obj)
 {
     vlc_tls_client_t *crd = vlc_custom_create(obj, sizeof (*crd),
@@ -125,6 +268,20 @@ vlc_tls_client_t *vlc_tls_ClientCreate(vlc_object_t *obj)
         return NULL;
     }
 
+    /// open and parse PvD config file
+    char *pvd_config = var_InheritString(crd, "pvd-config");
+    // dictionary mapping urls to PvD names
+    vlc_dictionary_t *url_pvds = malloc(sizeof(vlc_dictionary_t));
+
+    int ret = vlc_tls_pvd_parse_config(crd, url_pvds, pvd_config);
+    if (ret != VLC_SUCCESS) {
+        vlc_dictionary_clear(url_pvds, vlc_tls_clear_array, NULL);
+        free(url_pvds);
+        return ret;
+    }
+
+    crd->url_pvds = url_pvds;
+
     return crd;
 }
 
@@ -135,6 +292,8 @@ void vlc_tls_ClientDelete(vlc_tls_client_t *crd)
 
     crd->ops->destroy(crd);
     vlc_objres_clear(VLC_OBJECT(crd));
+    vlc_dictionary_clear(crd->url_pvds, vlc_tls_clear_array, NULL);
+    free(crd->url_pvds);
     vlc_object_delete(crd);
 }
 

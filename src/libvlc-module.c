@@ -876,6 +876,10 @@ static const char *const ppsz_prefres[] = {
 #define KEY_LONGTEXT N_( \
    "This private key file (PEM format) is used for server-side TLS.")
 
+#define PVD_CONFIG_TEXT N_("PvDs config file")
+#define PVD_CONFIG_LONGTEXT N_( \
+    "Provide the configuration file mapping URLs to Provisioning Domains.")
+
 #define PROXY_TEXT N_("HTTP proxy")
 #define PROXY_LONGTEXT N_( \
     "HTTP proxy to be used It must be of the form " \
@@ -1854,6 +1858,8 @@ vlc_module_begin ()
     add_loadfile("http-cert", NULL, HTTP_CERT_TEXT, CERT_LONGTEXT)
     add_obsolete_string( "sout-http-cert" ) /* since 2.0.0 */
     add_loadfile("http-key", NULL, HTTP_KEY_TEXT, KEY_LONGTEXT)
+    add_string("pvd-config", NULL, PVD_CONFIG_TEXT, PVD_CONFIG_LONGTEXT, true)
+        change_safe()
     add_obsolete_string( "sout-http-key" ) /* since 2.0.0 */
     add_obsolete_string( "http-ca" ) /* since 3.0.0 */
     add_obsolete_string( "sout-http-ca" ) /* since 2.0.0 */
