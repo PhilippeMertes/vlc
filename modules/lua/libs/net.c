@@ -427,6 +427,14 @@ static int vlclua_net_pvd_get(lua_State *L)
     return 1;
 }
 
+static int vlclua_net_pvd_unbind(lua_State *L) {
+    int ret = vlc_BindToPvd(NULL);
+    if (ret == 0)
+        vlc_tls_SetPreferredPvd(NULL);
+    lua_pushboolean(L, (ret < 0) ? 0 : 1);
+    return (ret < 0) ? 0 : 1;
+}
+
 
 /*****************************************************************************
  *
@@ -555,6 +563,7 @@ static const luaL_Reg vlclua_net_intf_reg[] = {
     { "set_pvd", vlclua_net_pvd_set},
     { "get_pvd_names", vlclua_net_pvd_get_names },
     { "get_pvd_attributes", vlclua_net_pvd_get_attributes },
+    { "no_pvd", vlclua_net_pvd_unbind },
 #ifndef _WIN32
     { "read", vlclua_fd_read },
     { "write", vlclua_fd_write },

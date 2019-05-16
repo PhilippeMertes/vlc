@@ -568,6 +568,14 @@ function pvd(name, client, value)
     end
 end
 
+function no_pvd(name, client, value)
+    if vlc.net.no_pvd() then
+        client:append("Process successfully unbound from any PvD")
+    else
+        client:append("Unbinding of the process not successful")
+    end
+end
+
 --[[ Declare commands, register their callback functions and provide
      help strings here.
      Syntax is:
@@ -634,8 +642,9 @@ commands_ordered = {
     { "strack"; { func = skip(listvalue("input","spu-es")); args = "[X]"; help = "set/get subtitle track" } };
     { "hotkey"; { func = hotkey; args = "[hotkey name]"; help = "simulate hotkey press"; adv = true; aliases = { "key" } } };
     { "" };
-    { "show_pvds"; { func = show_pvds; help = "print kernel PvDs" } };
-    { "pvd"; { func = pvd; args = "[name]"; help = "set/get the socket PvD" } };
+    { "show_pvds"; { func = show_pvds; help = "print known PvDs" } };
+    { "pvd"; { func = pvd; args = "[name]"; help = "set/get bound PvD" } };
+    { "no_pvd"; { func = no_pvd; help = "unbind the process from any PvD" } };
     { "" };
     { "vlm"; { func = load_vlm; help = "load the VLM" } };
     { "set"; { func = set_env; args = "[var [value]]"; help = "set/get env var"; adv = true } };

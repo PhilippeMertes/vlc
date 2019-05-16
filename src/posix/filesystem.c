@@ -350,8 +350,15 @@ static char *curr_pvd = NULL;
 int vlc_BindToPvd(const char *pvdname) {
     char proc_pvd[PVDNAMSIZ];
 
+    if (!pvdname) {
+        int ret =  proc_bind_to_nopvd();
+        if (!ret)
+            curr_pvd = NULL;
+        return ret;
+    }
+
     // bind the process to the PvD
-    proc_bind_to_pvd(pvdname);
+    proc_bind_to_pvd((char*) pvdname);
 
     // check if process successfully bound
     proc_get_bound_pvd(proc_pvd);
@@ -361,7 +368,7 @@ int vlc_BindToPvd(const char *pvdname) {
         return 0;
     }
     else
-        return (proc_bind_to_nopvd() >= 0) ? 1 : 2;
+        return (proc_bind_to_nopvd() < 0) ? 2 : 1;
 }
 
 char *vlc_GetCurrentPvd() {

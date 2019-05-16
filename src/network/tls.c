@@ -327,5 +327,5 @@ vlc_tls_t *vlc_tls_SocketOpenTLS(vlc_tls_client_t *creds, const char *name,
 
 void vlc_tls_SetPreferredPvd(const char *pvdname) {
     free(pref_pvd);
-    pref_pvd = strdup(pvdname);
+    pref_pvd = (pvdname) ? strdup(pvdname) : NULL;
 }
