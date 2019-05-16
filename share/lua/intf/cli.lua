@@ -550,9 +550,13 @@ function hotkey(name, client, value)
 end
 
 function show_pvds(name, client, value)
-    pvds = vlc.net.show_pvds()
-    if pvds then
-        client:append(pvds)
+    names = vlc.net.get_pvd_names()
+    if names then
+        for i, n in pairs(names) do
+            attributes = vlc.net.get_pvd_attributes(n)
+            client:append("=== "..n.." ===")
+            client:append(attributes)
+        end
     end
 end
 

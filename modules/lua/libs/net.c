@@ -354,50 +354,53 @@ static int vlclua_net_poll( lua_State *L )
 /*****************************************************************************
  * Net pvd
  *****************************************************************************/
-static int vlclua_net_pvd_show( lua_State *L )
-{
-    t_pvd_connection* conn = pvd_connect(-1);
-
-    t_pvd_list* pvd_list = malloc(sizeof(t_pvd_list));
+static int vlclua_net_pvd_get_names(lua_State *L) {
+    t_pvd_connection *conn = pvd_connect(-1);
+    t_pvd_list *pvd_list = malloc(sizeof(t_pvd_list));
 
     // get list of PvD names
     if(pvd_get_pvd_list_sync(conn, pvd_list)) {
         lua_pushstring(L, "Error on getting PvD list from daemon");
+        pvd_disconnect(conn);
         free(pvd_list);
         return 0;
     }
-    // print Pvd names
-    char ret_string[4352*(pvd_list->npvd)];
-    int pos = 0;
-    pos += sprintf(&ret_string[pos], "PVD NAMES:\n");
-    for(int i = 0; i < pvd_list->npvd; ++i)
-        pos += sprintf(&ret_string[pos], "%s\n", pvd_list->pvdnames[i]);
 
-    // get PvD attributes
-    char** attributes = malloc(4096);
-    pos += sprintf(&ret_string[pos], "\n\nPVD ATTRIBUTES:\n");
-    for(int i = 0; i < pvd_list->npvd; ++i) {
-        pos += sprintf(&ret_string[pos], "%s:\n", pvd_list->pvdnames[i]);
-        if(pvd_get_attributes_sync(conn, pvd_list->pvdnames[i], attributes))
-            pos += sprintf(&ret_string[pos], "unable to get\n");
-        else {
-            pos += sprintf(&ret_string[pos], "%s\n", attributes[0]);
-        }
-        attributes = realloc(attributes, 4096);
+    // creating return table
+    lua_newtable(L);
+    for (int i = 0; i < pvd_list->npvd; ++i) {
+        lua_pushnumber(L, i);
+        lua_pushstring(L, pvd_list->pvdnames[i]);
+        lua_settable(L, -3);
+        free(pvd_list->pvdnames[i]);
+    }
+    pvd_disconnect(conn);
+    free(pvd_list);
+    return 1;
+}
+
+static int vlclua_net_pvd_get_attributes(lua_State *L) {
+    t_pvd_connection *conn = pvd_connect(-1);
+    char* attributes;
+    const char *pvdname = luaL_checkstring(L, 1);
+    lua_pushstring(L, pvdname);
+
+    if (pvd_get_attributes_sync(conn, (char*) pvdname, &attributes)) {
+        pvd_disconnect(conn);
+        return 0;
     }
 
+    lua_pushstring(L, attributes);
     free(attributes);
-    free(pvd_list);
-    lua_pushstring(L, ret_string);
     return 1;
 }
 
 static int vlclua_net_pvd_set( lua_State *L )
 {
-    char *pvdname = luaL_checkstring(L, 1);
+    const char *pvdname = luaL_checkstring(L, 1);
     lua_pushstring(L, pvdname);
 
-    switch (vlc_BindToPvd(pvdname)) {
+    switch (vlc_BindToPvd((char*) pvdname)) {
         case 0:
             lua_pushstring(L, "Process is successfully bound to the PvD");
             vlc_tls_SetPreferredPvd(pvdname);
@@ -418,7 +421,7 @@ static int vlclua_net_pvd_get(lua_State *L)
 {
     char *pvdname = vlc_GetCurrentPvd();
     if (!pvdname)
-        pvdname = "VLC not bound to any PvD yet.";
+        pvdname = (char*) "VLC not bound to any PvD yet.";
     lua_pushstring(L, pvdname);
     return 1;
 }
@@ -547,12 +550,13 @@ static const luaL_Reg vlclua_net_intf_reg[] = {
     { "send", vlclua_net_send },
     { "recv", vlclua_net_recv },
     { "poll", vlclua_net_poll },
+    { "get_pvd", vlclua_net_pvd_get},
+    { "set_pvd", vlclua_net_pvd_set},
+    { "get_pvd_names", vlclua_net_pvd_get_names },
+    { "get_pvd_attributes", vlclua_net_pvd_get_attributes },
 #ifndef _WIN32
     { "read", vlclua_fd_read },
     { "write", vlclua_fd_write },
-    { "get_pvd", vlclua_net_pvd_get},
-    { "set_pvd", vlclua_net_pvd_set},
-    { "show_pvds", vlclua_net_pvd_show },
 #endif
     /* The following functions do not depend on intf_thread_t and do not really
      * belong in net.* but are left here for backward compatibility: */

@@ -348,7 +348,7 @@ int vlc_accept (int lfd, struct sockaddr *addr, socklen_t *alen, bool nonblock)
 static char *curr_pvd = NULL;
 
 int vlc_BindToPvd(const char *pvdname) {
-    char proc_pvd[256];
+    char proc_pvd[PVDNAMSIZ];
 
     // bind the process to the PvD
     proc_bind_to_pvd(pvdname);
