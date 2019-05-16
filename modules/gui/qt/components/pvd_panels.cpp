@@ -22,7 +22,6 @@ extern "C" {
 
 
 #define SOCKET_FILE "/tmp/pvd-stats.uds"
-#define PVD_PORT 10101
 
 
 intf_thread_t* PvdStatsPanel::p_intf = NULL;
@@ -242,7 +241,7 @@ void PvdStatsPanel::update() {
 }
 
 void PvdStatsPanel::get_extra_info() {
-    t_pvd_connection *conn = pvd_connect(PVD_PORT);
+    t_pvd_connection *conn = pvd_connect(-1);
     char *extra_info;
     QJsonObject json;
     QJsonDocument json_doc;

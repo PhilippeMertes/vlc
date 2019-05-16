@@ -29,7 +29,7 @@ PvdStatsDialog::PvdStatsDialog(intf_thread_t *_p_intf) : QVLCFrame(_p_intf)
                     Qt::WindowCloseButtonHint | Qt::WindowMinimizeButtonHint);
 
     /* get list of PvD names */
-    t_pvd_connection *conn = pvd_connect(10101);
+    t_pvd_connection *conn = pvd_connect(-1);
     t_pvd_list *pvd_list = (t_pvd_list*) malloc(sizeof(t_pvd_list));
 
     /* TabWidgets and Tabs creation, tabs named after PvDs */

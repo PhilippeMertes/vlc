@@ -354,10 +354,9 @@ static int vlclua_net_poll( lua_State *L )
 /*****************************************************************************
  * Net pvd
  *****************************************************************************/
-#ifndef _WIN32
 static int vlclua_net_pvd_show( lua_State *L )
 {
-    t_pvd_connection* conn = pvd_connect(10101);
+    t_pvd_connection* conn = pvd_connect(-1);
 
     t_pvd_list* pvd_list = malloc(sizeof(t_pvd_list));
 
@@ -391,69 +390,6 @@ static int vlclua_net_pvd_show( lua_State *L )
     free(pvd_list);
     lua_pushstring(L, ret_string);
     return 1;
-
-    /*
-    int len = 0;
-    // waiting until message received
-    while(len == 0)
-        ioctl(sockfd, FIONREAD, &len);
-    char message[len];
-    if(read(sockfd, &message, len) < 0) {
-        lua_pushstring(L, "Error on reading message");
-        return 0;
-    }
-
-    int pos = 0;
-    // parse message
-    t_pvd_list* pvd_list = malloc(sizeof(t_pvd_list));
-    if(pvd_parse_pvd_list(message, pvd_list)) {
-        lua_pushstring(L, "Unable to parse the message received from pvdd");
-        return 0;
-    }
-    char ret_string[4096*(pvd_list->npvd-1)];
-    for(int i = 1; i < pvd_list->npvd; ++i)
-        pos += sprintf(&ret_string[pos], "%s\n", pvd_list->pvdnames[i]);
-
-    if(pvd_get_attributes(connection, ""*""))
-        pos += sprintf(&ret_string[pos], "unable to get PvD attributes\n");
-    else {
-        len = 0;
-        // waiting until message received
-        while(len == 0)
-            ioctl(sockfd, FIONREAD, &len);
-        char attr_msg[len];
-        if(read(sockfd, &attr_msg, len) < 0) {
-            lua_pushstring(L, "Error on reading attributes message from socket");
-            return 0;
-        }
-
-        pos += sprintf(&ret_string[pos], "%s\n", attr_msg);
-    }
-
-    lua_pushstring(L, ret_string);
-    return 1;
-
-    /*
-     * Method retrieving PvDs from kernel
-    struct pvd_list* pvl = malloc(sizeof(struct pvd_list));
-
-    int ret = kernel_get_pvdlist(pvl);
-    char retString[256];
-    if (ret == 0) {
-        int pos = 0;
-        for (int i = 0; i < pvl->npvd; ++i) {
-            pos += sprintf(&retString[pos], "%s\n", pvl->pvds[i]);
-        }
-    }
-    else {
-        sprintf(retString, "Unable to get PvDs from kernel.");
-    }
-
-    lua_pushstring(L, retString);
-
-    free(pvl);
-    return (ret == 0) ? 1 : 0;
-    */
 }
 
 static int vlclua_net_pvd_set( lua_State *L )
@@ -487,7 +423,6 @@ static int vlclua_net_pvd_get(lua_State *L)
     return 1;
 }
 
-#endif
 
 /*****************************************************************************
  *
