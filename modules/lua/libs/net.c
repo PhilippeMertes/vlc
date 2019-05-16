@@ -392,6 +392,7 @@ static int vlclua_net_pvd_get_attributes(lua_State *L) {
 
     lua_pushstring(L, attributes);
     free(attributes);
+    pvd_disconnect(conn);
     return 1;
 }
 
