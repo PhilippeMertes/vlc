@@ -55,6 +55,7 @@ int vlc_getaddrinfo_i11e(const char *name, unsigned port,
                          const struct addrinfo *hints,
                          struct addrinfo **res)
 {
+    printf("POSIX: vlc_getaddrinfo_i11e\n");
     struct vlc_gai_req req =
     {
         .name = name,

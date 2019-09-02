@@ -343,6 +343,10 @@ void DialogsProvider::epgDialog()
     EpgDialog::getInstance( p_intf )->toggleVisible();
 }
 
+/**
+ * Turns the dialog showing network statistics by
+ * Provisioning Domains visible.
+ */
 void DialogsProvider::pvdStatsDialog()
 {
     PvdStatsDialog::getInstance(p_intf)->toggleVisible();

@@ -1858,7 +1858,7 @@ vlc_module_begin ()
     add_loadfile("http-cert", NULL, HTTP_CERT_TEXT, CERT_LONGTEXT)
     add_obsolete_string( "sout-http-cert" ) /* since 2.0.0 */
     add_loadfile("http-key", NULL, HTTP_KEY_TEXT, KEY_LONGTEXT)
-    add_string("pvd-config", NULL, PVD_CONFIG_TEXT, PVD_CONFIG_LONGTEXT, true)
+    add_string("pvd-config", NULL, PVD_CONFIG_TEXT, PVD_CONFIG_LONGTEXT, true) // PvD configuration file
         change_safe()
     add_obsolete_string( "sout-http-key" ) /* since 2.0.0 */
     add_obsolete_string( "http-ca" ) /* since 3.0.0 */

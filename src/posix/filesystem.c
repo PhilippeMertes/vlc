@@ -347,9 +347,18 @@ int vlc_accept (int lfd, struct sockaddr *addr, socklen_t *alen, bool nonblock)
 // variable holding current provisioning domain
 static char *curr_pvd = NULL;
 
+/**
+ * Tries to bind the process to a Provisioning Domain.
+ *
+ * @param pvdname Fully-Qualified Domain Name
+ * @return 0 if success
+ *         1 if unable to bind, but able to unbind to any PvD
+ *         2 if both was unsuccessful
+ */
 int vlc_BindToPvd(const char *pvdname) {
     char proc_pvd[PVDNAMSIZ];
 
+    // if no PvD name provided, unbind from any
     if (!pvdname) {
         int ret =  proc_bind_to_nopvd();
         if (!ret)
@@ -371,6 +380,11 @@ int vlc_BindToPvd(const char *pvdname) {
         return (proc_bind_to_nopvd() < 0) ? 2 : 1;
 }
 
+/**
+ * Returns the Provisioning Domain that VLC is currently bound to.
+ *
+ * @return Fully-Qualified Domain Name
+ */
 char *vlc_GetCurrentPvd() {
     return (curr_pvd) ? strdup(curr_pvd) : NULL;
 }

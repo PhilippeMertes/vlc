@@ -141,7 +141,7 @@ typedef struct vlc_tls_client
     struct vlc_common_members obj;
     const struct vlc_tls_client_operations *ops;
     void *sys;
-    vlc_dictionary_t *url_pvds;
+    vlc_dictionary_t *url_pvds; // contains URL(string)<->PvDs(array of strings) mappings
 } vlc_tls_client_t;
 
 struct vlc_tls_client_operations
@@ -480,6 +480,14 @@ VLC_API vlc_tls_t *vlc_tls_SocketOpenTLS(vlc_tls_client_t *crd,
                                          const char *service,
                                          const char *const *alpn, char **alp);
 
+/**
+ * Sets the "preferred" Provisioning Domain (PvD).
+ *
+ * When the preferred PvD is set, then any VLC stream will always
+ * be bound to this PvD, no matter what is listed in the configuration file.
+ *
+ * @param pvdname: the PvD's Fully-Qualified Domain Name (FQDN)
+ */
 VLC_API void vlc_tls_SetPreferredPvd(const char *pvdname);
 
 /** @} */

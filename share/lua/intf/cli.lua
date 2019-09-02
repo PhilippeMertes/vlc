@@ -549,6 +549,7 @@ function hotkey(name, client, value)
     end
 end
 
+--[[ Displays the currently known Provisioning Domains and their attributes. ]]
 function show_pvds(name, client, value)
     names = vlc.net.get_pvd_names()
     if names then
@@ -560,6 +561,10 @@ function show_pvds(name, client, value)
     end
 end
 
+--[[ If called with a value, then it will try to bind
+     VLC to the provided Provisioning Domain.
+     Else, it will display the PvD that VLC is currently bound to.
+]]
 function pvd(name, client, value)
     if value then
         client:append(vlc.net.set_pvd(value))
@@ -568,6 +573,7 @@ function pvd(name, client, value)
     end
 end
 
+--[[ Tries to unbind VLC from any PvD. ]]
 function no_pvd(name, client, value)
     if vlc.net.no_pvd() then
         client:append("Process successfully unbound from any PvD")
@@ -642,6 +648,7 @@ commands_ordered = {
     { "strack"; { func = skip(listvalue("input","spu-es")); args = "[X]"; help = "set/get subtitle track" } };
     { "hotkey"; { func = hotkey; args = "[hotkey name]"; help = "simulate hotkey press"; adv = true; aliases = { "key" } } };
     { "" };
+    -- PvD commands
     { "show_pvds"; { func = show_pvds; help = "print known PvDs" } };
     { "pvd"; { func = pvd; args = "[name]"; help = "set/get bound PvD" } };
     { "no_pvd"; { func = no_pvd; help = "unbind the process from any PvD" } };

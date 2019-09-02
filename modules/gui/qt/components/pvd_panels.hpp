@@ -8,7 +8,7 @@
 class QTreeWidget;
 class QTreeWidgetItem;
 
-//Inspired by InputStatsPanel class in info_panels.hpp
+// Inspired by InputStatsPanel class in info_panels.hpp
 class PvdStatsPanel : public QWidget
 {
     Q_OBJECT

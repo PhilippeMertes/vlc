@@ -427,7 +427,7 @@ QMenu *VLCMenuBar::ToolsMenu( intf_thread_t *p_intf, QMenu *menu )
     addDPStaticEntry( menu, qtr( "Program Guide" ), "", SLOT( epgDialog() ),
         "" );
 
-    addDPStaticEntry(menu, qtr("PvD &Statistics"), "", SLOT(pvdStatsDialog()), "");
+    addDPStaticEntry(menu, qtr("PvD &Statistics"), "", SLOT(pvdStatsDialog()), ""); // PvD network stats dialog
 
     addDPStaticEntry( menu, qtr( I_MENU_MSG ),
         ":/menu/messages.svg", SLOT( messagesDialog() ), "Ctrl+M" );

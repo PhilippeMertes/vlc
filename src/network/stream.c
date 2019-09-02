@@ -406,6 +406,7 @@ static const struct vlc_tls_operations vlc_tls_socket_fastopen_ops =
 vlc_tls_t *vlc_tls_SocketOpenAddrInfo(const struct addrinfo *restrict info,
                                       bool defer_connect)
 {
+    printf("vlc_tls_SocketOpenAddrInfo\n");
     vlc_tls_t *sock = vlc_tls_SocketAddrInfo(info);
     if (sock == NULL)
         return NULL;

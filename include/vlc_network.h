@@ -280,8 +280,30 @@ static inline int net_GetPeerAddress( int fd, char *address, int *port )
 
 VLC_API char *vlc_getProxyUrl(const char *);
 
+/**
+ * Binds the process to a Provisioning Domain (PvD).
+ *
+ * All sockets created inside this process will be bound to this PvD.
+ * It must thus use the prefix of this PvD and only has access to its
+ * specific routing table, etc. (see RFC 7556).
+ *
+ * @param pvdname FQDN of the PvD (constant string)
+ * @return an integer indicating the success of the operation
+ *         0: success
+ *         1: PvD binding unsuccessful, but the function was able to
+ *            the process from any PvD.
+ *         2: unable to bind the process to a PvD as well as unbinding it.
+ */
 VLC_API int vlc_BindToPvd(const char *pvdname);
 
+/**
+ * Returns the current Provisioning Domain (PvD).
+ *
+ * Returns the PvD (see RFC 7556), that the process is currently
+ * bound to. Each sockets created in this process are bound to this PvD.
+ *
+ * @return the PvD's Fully-Qualified Domain Name (FQDN)
+ */
 VLC_API VLC_MALLOC char *vlc_GetCurrentPvd();
 
 # ifdef __cplusplus

@@ -319,6 +319,7 @@ error:
  */
 static int gnutls_Handshake(vlc_tls_t *tls, char **restrict alp)
 {
+    printf("gnutls_Handshake\n");
     vlc_tls_gnutls_t *priv = (vlc_tls_gnutls_t *)tls;
     vlc_object_t *obj = priv->obj;
     gnutls_session_t session = priv->session;
@@ -744,9 +745,6 @@ error:
     "hash functions and compression methods can be selected. " \
     "Refer to GNU TLS documentation for detailed syntax.")
 
-#define PVD_CONF_TEXT "PvDs config file"
-#define PVD_CONF_LONGTEXT "Provide the configuration file mapping " \
-    "URLs to Provisioning Domains"
 static const char *const priorities_values[] = {
     "PERFORMANCE",
     "NORMAL",

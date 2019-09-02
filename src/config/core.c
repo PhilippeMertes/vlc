@@ -116,7 +116,7 @@ char *config_GetPsz(const char *psz_name)
 
     p_config = config_FindConfig( psz_name );
 
-    if (!p_config)
+    if (!p_config) // added as else, there was some mysterious error
         return NULL;
 
     /* sanity checks */

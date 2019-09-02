@@ -26,7 +26,13 @@ extern "C" {
 
 intf_thread_t* PvdStatsPanel::p_intf = NULL;
 
-
+/**
+ * Panel containing statistics for a Provisioning Domain (PvD).
+ *
+ * @param parent parent widget
+ * @param _p_intf thread interface
+ * @param _pvdname Fully-Qualified Domain Name of the PvD
+ */
 PvdStatsPanel::PvdStatsPanel(QWidget *parent, intf_thread_t *_p_intf, char *_pvdname) : QWidget(parent)
 {
     if (p_intf == NULL)
@@ -66,6 +72,7 @@ PvdStatsPanel::PvdStatsPanel(QWidget *parent, intf_thread_t *_p_intf, char *_pvd
     CREATE_CATEGORY(tput, qtr("Throughput"));
     CREATE_CATEGORY(rtt, qtr("Round-trip time"));
 
+    /* Build the statistics tree */
     if (exp_str[0].empty()) {
         CREATE_AND_ADD_TO_CAT(tput_gen, qtr("In general"), "", tput, "");
     } else {
@@ -133,12 +140,18 @@ PvdStatsPanel::PvdStatsPanel(QWidget *parent, intf_thread_t *_p_intf, char *_pvd
     layout->addWidget(statsTree, 4, 0);
 }
 
-
-
+/**
+ * Updates the displayed statistics through a JSON object.
+ *
+ * The JSON object must follow the one defined by pvd-stats.
+ * Thus, the JSON object should be received from pvd-stats.
+ *
+ * @param json JSON object containing updated information
+ */
 void PvdStatsPanel::update_parse_json(const QJsonObject& json) {
 #define UPDATE_FLOAT( widget, format, calc... ) \
     { QString str; widget->setText( 1 , str.sprintf( format, ## calc ) );  }
-
+    // JSON object keys
     const char* stats_keys[2] = {"tput", "rtt"};
     const char* stats_subkeys[3] = {"general", "upload", "download"};
     const char* val_keys[3] = {"min", "max", "avg"};
@@ -186,7 +199,11 @@ void PvdStatsPanel::update_parse_json(const QJsonObject& json) {
 #undef UPDATE_FLOAT
 }
 
-
+/**
+ * Updates the statistics contained in the panel.
+ *
+ * The up-to-date statistics are retrieved from pvd-stats.
+ */
 void PvdStatsPanel::update() {
     using ::close;
     int sock;
@@ -240,6 +257,10 @@ void PvdStatsPanel::update() {
     close(sock);
 }
 
+/**
+ * Retrieves and stores the extra attributes information
+ * of the corresponding Provisioning Domain from pvdd.
+ */
 void PvdStatsPanel::get_extra_info() {
     t_pvd_connection *conn = pvd_connect(-1);
     char *extra_info;
@@ -252,10 +273,12 @@ void PvdStatsPanel::get_extra_info() {
             {"rtt", "rtt_up", "rtt_dwn"}
     };
 
-    pvd_get_attribute_sync(conn, const_cast<char*>(pvdname.c_str()), const_cast<char*>("extraInfo"), &extra_info);
+    pvd_get_attribute_sync(conn, const_cast<char*>(pvdname.c_str()),
+        const_cast<char*>("extraInfo"), &extra_info);
 
     if (strcmp(extra_info, "null\n") == 0) { // no extra info known to pvdd
-        msg_Warn(p_intf, "No additional information for the PvD \"%s\" known by pvdd.", pvdname.c_str());
+        msg_Warn(p_intf, "No additional information for the PvD \"%s\" known by pvdd.",
+            pvdname.c_str());
         delete extra_info;
         pvd_disconnect(conn);
         return;
@@ -265,13 +288,14 @@ void PvdStatsPanel::get_extra_info() {
     json_doc = QJsonDocument::fromJson(QString(extra_info).toUtf8());
     if ((!json_doc.isNull() && json_doc.isObject()))
         json = json_doc.object();
-    else {
+    else { // no JSON object error
         msg_Warn(p_intf, "pvdd didn't return a JSON object\nResponse:\n%s", extra_info);
         delete extra_info;
         pvd_disconnect(conn);
         return;
     }
 
+    // parse extra information
     for (int i = 0; i < 2; ++i) {
         for (int j = 0; j < 3; ++j) {
             key = QString(extra_info_keys[i][j]);
@@ -289,7 +313,13 @@ void PvdStatsPanel::get_extra_info() {
     pvd_disconnect(conn);
 }
 
-
+/**
+ * Transforms a throughput value into Mb/s (megabits per second).
+ *
+ * @param value throughput value to be transformed
+ * @param unit value's unit
+ * @return throughput value in Mb/s
+ */
 double transform_to_mbps(double& value, const std::string& unit) {
     switch (unit[0]) {
         case 'G':
@@ -314,6 +344,13 @@ double transform_to_mbps(double& value, const std::string& unit) {
     return (unit[1] == 'B') ? value * 8 : value;
 }
 
+/**
+ * Transforms a round-trip time value into µs (microseconds).
+ *
+ * @param value RTT value to be transformed
+ * @param unit value's unit
+ * @return RTT value in µs
+ */
 double transform_to_us(double& value, const std::string& unit) {
     switch (unit[0]) {
         case 's':
@@ -330,7 +367,10 @@ double transform_to_us(double& value, const std::string& unit) {
     return value;
 }
 
-
+/**
+ * Parses the expected throughput and RTT value strings and
+ * computes their respective values in Mb/s or µs, respectively.
+ */
 void PvdStatsPanel::parse_expected_values() {
     double value;
     std::string value_str;
@@ -348,7 +388,19 @@ void PvdStatsPanel::parse_expected_values() {
     }
 }
 
-
+/**
+ * Compares the statistics received through pvd-stats with the
+ * expected values set in the extra information field of the PvD.
+ *
+ * It will color the different elements in the tree accordingly:
+ *      green: expected value
+ *      red: value below expectations
+ * The throughput and RTT general elements will also be colored:
+ *      green: all values as expected
+ *      black: one value below expectations
+ *      orange: two values below expectations
+ *      red: all values below expecations
+ */
 void PvdStatsPanel::compare_stats_expected() {
     QTreeWidgetItem* tput_widgets[3][3] = {
             {tput_min, tput_max, tput_avg},
@@ -410,6 +462,11 @@ void PvdStatsPanel::compare_stats_expected() {
     }
 }
 
+/**
+ * Returns the Fully-Qualified Domain Name of the Provisioning Domain.
+ *
+ * @return the PvD's FQDN
+ */
 std::string PvdStatsPanel::get_pvdname() {
     return pvdname;
 }

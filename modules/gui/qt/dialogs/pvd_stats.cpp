@@ -19,6 +19,11 @@ extern "C" {
 QVector<PvdStatsPanel*> PvdStatsDialog::panels = QVector<PvdStatsPanel*>();
 QLineEdit *PvdStatsDialog::currPvdLine = NULL;
 
+/**
+ * Dialog window presenting networking statistics by Provisioning Domains (PvDs).
+ *
+ * @param _p_intf: thread interface
+ */
 PvdStatsDialog::PvdStatsDialog(intf_thread_t *_p_intf) : QVLCFrame(_p_intf)
 {
     /* Window information */
@@ -43,6 +48,7 @@ PvdStatsDialog::PvdStatsDialog(intf_thread_t *_p_intf) : QVLCFrame(_p_intf)
                              "Make sure pvdd is running on port 10101.");
     } else {
         for(int i = 0; i < pvd_list->npvd; ++i) {
+            // create tab panels
             pvdname = strdup(pvd_list->pvdnames[i]);
             panels.push_back(new PvdStatsPanel(pvdTabW, p_intf, pvdname));
             pvdTabW->addTab(panels[i], qtr(pvdname));
@@ -51,19 +57,6 @@ PvdStatsDialog::PvdStatsDialog(intf_thread_t *_p_intf) : QVLCFrame(_p_intf)
     }
 
     free(pvd_list);
-
-    /* TODO: remove after testing
-    panels.push_back(new PvdStatsPanel(pvdTabW, p_intf, "video.mpvd.io."));
-    pvdTabW->addTab(panels[0], qtr("video.mpvd.io."));
-    if (panels[0]->isVisible()) {
-        std::cout << "panels[0] is visible" << std::endl;
-    }
-    panels.push_back(new PvdStatsPanel(pvdTabW, p_intf, "test1.example.com."));
-    pvdTabW->addTab(panels[1], qtr("test1.example.com."));
-    if (panels[1]->isVisible()) {
-        std::cout << "panels[1] is visible" << std::endl;
-    }
-     */
 
     // get and print the PvD the process is currently bound to
     QLabel *currPvdLabel = new QLabel(qtr("Current Pvd:"));
@@ -106,24 +99,39 @@ PvdStatsDialog::~PvdStatsDialog()
     saveWidgetPosition("PvdStats");
 }
 
+/**
+ * Updates the statistics for the currently visible panel every second.
+ *
+ * Should be performed in a new thread.
+ *
+ * @param args NULL
+ * @return NULL
+ */
 void *PvdStatsDialog::update_stats(void *args)
 {
     int idx;
     char *curr_pvd;
 
     while (1) {
-        // update statistics for the visible panel
+        // find visible panel
         if ((idx = visible_panel()) >= 0) {
+            // update stats
             panels[idx]->update();
             panels[idx]->compare_stats_expected();
         }
+        // update current PvD
         curr_pvd = vlc_GetCurrentPvd();
         currPvdLine->setText(curr_pvd);
         free(curr_pvd);
+        // sleep for one second
         sleep(1);
     }
 }
 
+/**
+ * Determines the currently visible panel.
+ * @return panel index or -1 if no panel is visible
+ */
 int PvdStatsDialog::visible_panel() {
     for (int i = 0; i < panels.size(); ++i) {
         if (panels[i]->isVisible())
@@ -132,26 +140,33 @@ int PvdStatsDialog::visible_panel() {
     return -1;
 }
 
+/**
+ * Binds VLC to the PvD of the currently visible panel.
+ *
+ * A message box will open indicating if the binding was successful.
+ * If yes, the user may also have the possibility to set this PvD as its "preferred".
+ */
 void PvdStatsDialog::bind_to_pvd() {
     int idx;
     if ((idx = visible_panel()) >= 0) {
         std::string pvdname = panels[idx]->get_pvdname();
         switch (vlc_BindToPvd(pvdname.c_str())) {
-            case 0:
+            case 0: // Success
                 QMessageBox::information(this, "Successful PvD binding", "Process is successfully bound to the PvD");
                 currPvdLine->setText(pvdname.c_str());
-                if (QMessageBox::question(this, "Set as preferred", "Do you want to set this PvD as your preferred?"))
+                if (QMessageBox::question(this, "Set as preferred PvD",
+                        "Do you want to set this PvD as your preferred?"))
                     vlc_tls_SetPreferredPvd(pvdname.c_str());
                 break;
 
-            case 1:
+            case 1: // unsuccessful, but succeeded unbinding
                 QMessageBox::warning(this, "Failed binding to PvD",
-                                     "Process failed binding to the PvD, thus remains unbound to any PvD.");
+                                     "Process failed binding to the PvD.\nThus, it is now unbound to any PvD.");
                 break;
 
-            case 2:
+            case 2: // binding and unbinding unsuccessful
                 QMessageBox::critical(this, "Failed binding to PvD",
-                                      "Process failed binding to PvD and as well failed unbinding.");
+                                      "Process failed binding to PvD as well as unbinding!");
         }
     }
 }

@@ -36,9 +36,7 @@
 #include <poll.h>       /* poll structures and defines */
 #endif
 #include <sys/stat.h>
-#ifndef _WIN32
 #include <libpvd.h>
-#endif
 
 #include <vlc_common.h>
 #include <vlc_network.h>
@@ -354,6 +352,14 @@ static int vlclua_net_poll( lua_State *L )
 /*****************************************************************************
  * Net pvd
  *****************************************************************************/
+
+/**
+ * Retrieves the Fully-Qualified Domain Names of the currently known
+ * Provisioning Domains from pvdd and pushes a corresponding table to the stack.
+ *
+ * @param L lua state
+ * @return 0 if failure, 1 if success
+ */
 static int vlclua_net_pvd_get_names(lua_State *L) {
     t_pvd_connection *conn = pvd_connect(-1);
     t_pvd_list *pvd_list = malloc(sizeof(t_pvd_list));
@@ -379,45 +385,80 @@ static int vlclua_net_pvd_get_names(lua_State *L) {
     return 1;
 }
 
+/**
+ * Retrieves the attributes of a Provisioning Domain from pvdd
+ * and pushes them as a JSON string to the stack.
+ *
+ * The FQDN of the PvD must be passed on the stack,
+ * when calling this function.
+ *
+ * @param L lua state
+ * @return 0 if failure, 1 if success.
+ */
 static int vlclua_net_pvd_get_attributes(lua_State *L) {
     t_pvd_connection *conn = pvd_connect(-1);
     char* attributes;
     const char *pvdname = luaL_checkstring(L, 1);
     lua_pushstring(L, pvdname);
 
+    // retrieve attributes from pvdd
     if (pvd_get_attributes_sync(conn, (char*) pvdname, &attributes)) {
         pvd_disconnect(conn);
         return 0;
     }
 
+    // push string to stack and disconnect
     lua_pushstring(L, attributes);
     free(attributes);
     pvd_disconnect(conn);
     return 1;
 }
 
+/**
+ * Tries to bind VLC to a Provisioning Domain (PvD) and,
+ * if it is successful, sets this PvD as its preferred one.
+ *
+ * The FQDN of the PvD must be passed on the stack,
+ * when calling this function.
+ *
+ * It pushes a string indicating if the operation
+ * was successful or not to the stack.
+ *
+ * @param L lua state
+ * @return 1 if successfully bound to a PvD or
+ *           successfully unbound when this failed
+ *         0 if both failed
+ */
 static int vlclua_net_pvd_set( lua_State *L )
 {
     const char *pvdname = luaL_checkstring(L, 1);
     lua_pushstring(L, pvdname);
 
+    // try binding to the PvD
     switch (vlc_BindToPvd((char*) pvdname)) {
-        case 0:
+        case 0: // success
             lua_pushstring(L, "Process is successfully bound to the PvD");
             vlc_tls_SetPreferredPvd(pvdname);
             break;
 
-        case 1:
+        case 1: // unable to bind, but unbound successfully
             lua_pushstring(L, "Process failed binding to the PvD, thus remains unbound to any PvD.");
             break;
 
-        case 2:
+        case 2: // unable to bind and unbind
             lua_pushstring(L, "Process failed binding to PvD and as well failed unbinding.");
             return 0;
     }
     return 1;
 }
 
+/**
+ * Gets the Provisioning Domain (its FQDN) that VLC is currently set
+ * to be bound to and pushes it to the stack.
+ *
+ * @param L lua state
+ * @return 1
+ */
 static int vlclua_net_pvd_get(lua_State *L)
 {
     char *pvdname = vlc_GetCurrentPvd();
@@ -427,6 +468,15 @@ static int vlclua_net_pvd_get(lua_State *L)
     return 1;
 }
 
+/**
+ * Tries to unbind VLC from any PvD.
+ * Resets the preferred PvD too.
+ *
+ * Pushes a boolean indicating the success
+ * of the operation onto the stack.
+ * @param L lua state
+ * @return 0 if failure, 1 if success
+ */
 static int vlclua_net_pvd_unbind(lua_State *L) {
     int ret = vlc_BindToPvd(NULL);
     if (ret == 0)
@@ -559,6 +609,7 @@ static const luaL_Reg vlclua_net_intf_reg[] = {
     { "send", vlclua_net_send },
     { "recv", vlclua_net_recv },
     { "poll", vlclua_net_poll },
+    /* PvD functions */
     { "get_pvd", vlclua_net_pvd_get},
     { "set_pvd", vlclua_net_pvd_set},
     { "get_pvd_names", vlclua_net_pvd_get_names },
