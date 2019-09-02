@@ -180,6 +180,7 @@ int vlc_tls_pvd_parse_line(vlc_tls_client_t *crd, vlc_dictionary_t *url_pvds,
         if (start == -1) {
             msg_Err(crd, "Wrong syntax in PvD config file.\n"
                          "Usage: \"url\": [\"pvd1\", \"pvd2\", ...]");
+            free(url);
             return VLC_EGENERIC;
         }
         end = (int) rm[2].rm_eo;
@@ -188,6 +189,11 @@ int vlc_tls_pvd_parse_line(vlc_tls_client_t *crd, vlc_dictionary_t *url_pvds,
 
         // initialize dynamic array containing PvDs
         vlc_array_t *pvds = malloc(sizeof(vlc_array_t));
+        if (!pvds) {
+            msg_Err(crd, "Unable to allocate memory to create a dynamic array.");
+            free(url);
+            return VLC_EGENERIC;
+        }
         vlc_array_init(pvds);
 
         // parse PvDs
@@ -272,12 +278,17 @@ vlc_tls_client_t *vlc_tls_ClientCreate(vlc_object_t *obj)
     char *pvd_config = var_InheritString(crd, "pvd-config");
     // dictionary mapping urls to PvD names
     vlc_dictionary_t *url_pvds = malloc(sizeof(vlc_dictionary_t));
+    if (!url_pvds) {
+        msg_Err(crd, "Unable to allocate memory for a dictionary structure"
+                     "mapping URLs to PvDs.");
+        return NULL;
+    }
 
     int ret = vlc_tls_pvd_parse_config(crd, url_pvds, pvd_config);
     if (ret != VLC_SUCCESS) {
         vlc_dictionary_clear(url_pvds, vlc_tls_clear_array, NULL);
         free(url_pvds);
-        return ret;
+        return NULL;
     }
 
     crd->url_pvds = url_pvds;
@@ -326,6 +337,7 @@ vlc_tls_t *vlc_tls_ClientSessionCreate(vlc_tls_client_t *crd, vlc_tls_t *sock,
 
     if (session == NULL)
         return NULL;
+    printf("session fd = %d\n", session->ops->get_fd(session, NULL));
 
     session->p = sock;
 
@@ -336,8 +348,10 @@ vlc_tls_t *vlc_tls_ClientSessionCreate(vlc_tls_client_t *crd, vlc_tls_t *sock,
     vlc_cleanup_push (cleanup_tls, session);
     while ((val = crd->ops->handshake(session, host, service, alp)) != 0)
     {
+        printf("while loop\n");
         struct pollfd ufd[1];
 
+        //printf ("ClientSessionCreate: vlc_BindToPvd return: %d\n", vlc_BindToPvd("test.example.com."));
         if (val < 0 || vlc_killed() )
         {
             if (val < 0)
@@ -396,8 +410,9 @@ vlc_tls_t *vlc_tls_SocketOpenTLS(vlc_tls_client_t *creds, const char *name,
         .ai_protocol = IPPROTO_TCP,
     }, *res;
 
-#ifndef _WIN32
-    if (creds->url_pvds && !pref_pvd) {
+    //printf ("SocketOpenTLS: vlc_BindToPvd return: %d\n", vlc_BindToPvd("test.example.com."));
+
+    /*if (creds->url_pvds && !pref_pvd) {
         msg_Dbg(creds, "trying to bind to preconfigured PvD");
 
         // check for preferred default PvD
@@ -444,12 +459,13 @@ vlc_tls_t *vlc_tls_SocketOpenTLS(vlc_tls_client_t *creds, const char *name,
                 break;
             }
         }
-    }
-#endif
+    }*/
 
     msg_Dbg(creds, "resolving %s ...", name);
+    printf("resolving %s ..., port=%u\n", name, port);
 
     int val = vlc_getaddrinfo_i11e(name, port, &hints, &res);
+    printf("passed dns check: port=%u, val=%d\n", port, val);
     if (val != 0)
     {   /* TODO: C locale for gai_strerror() */
         msg_Err(creds, "cannot resolve %s port %u: %s", name, port,
@@ -465,14 +481,18 @@ vlc_tls_t *vlc_tls_SocketOpenTLS(vlc_tls_client_t *creds, const char *name,
             msg_Err(creds, "socket error: %s", vlc_strerror_c(errno));
             continue;
         }
+        printf("tcp != NULL\n");
 
         vlc_tls_t *tls = vlc_tls_ClientSessionCreate(creds, tcp, name, service,
                                                      alpn, alp);
+        printf("ClientSessionCreate passed\n");
         if (tls != NULL)
         {   /* Success! */
+            printf("tls != NULL\n");
             freeaddrinfo(res);
             return tls;
         }
+        printf ("tls == NULL\n");
 
         msg_Err(creds, "connection error: %s", vlc_strerror_c(errno));
         vlc_tls_SessionDelete(tcp);
