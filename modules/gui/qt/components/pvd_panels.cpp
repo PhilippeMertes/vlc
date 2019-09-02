@@ -279,9 +279,7 @@ void PvdStatsPanel::get_extra_info() {
     if (strcmp(extra_info, "null\n") == 0) { // no extra info known to pvdd
         msg_Warn(p_intf, "No additional information for the PvD \"%s\" known by pvdd.",
             pvdname.c_str());
-        delete extra_info;
-        pvd_disconnect(conn);
-        return;
+        goto exit;
     }
 
     // convert string to QJsonObject
@@ -290,9 +288,7 @@ void PvdStatsPanel::get_extra_info() {
         json = json_doc.object();
     else { // no JSON object error
         msg_Warn(p_intf, "pvdd didn't return a JSON object\nResponse:\n%s", extra_info);
-        delete extra_info;
-        pvd_disconnect(conn);
-        return;
+        goto exit;
     }
 
     // parse extra information
@@ -308,7 +304,8 @@ void PvdStatsPanel::get_extra_info() {
             }
         }
     }
-    
+
+exit:
     delete extra_info;
     pvd_disconnect(conn);
 }

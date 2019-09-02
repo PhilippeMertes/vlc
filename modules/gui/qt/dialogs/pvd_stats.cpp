@@ -26,6 +26,8 @@ QLineEdit *PvdStatsDialog::currPvdLine = NULL;
  */
 PvdStatsDialog::PvdStatsDialog(intf_thread_t *_p_intf) : QVLCFrame(_p_intf)
 {
+    char *pvdname;
+
     /* Window information */
     setWindowTitle(qtr("Provisioning Domains Statistics"));
     setWindowRole("vlc-pvd-stats");
@@ -36,27 +38,31 @@ PvdStatsDialog::PvdStatsDialog(intf_thread_t *_p_intf) : QVLCFrame(_p_intf)
     /* get list of PvD names */
     t_pvd_connection *conn = pvd_connect(-1);
     t_pvd_list *pvd_list = (t_pvd_list*) malloc(sizeof(t_pvd_list));
-
-    /* TabWidgets and Tabs creation, tabs named after PvDs */
-    pvdTabW = new QTabWidget;
-    char *pvdname;
-    if(pvd_get_pvd_list_sync(conn, pvd_list)) {
-        msg_Warn(p_intf, "Error on getting PvD list from daemon.\n"
-                        "Make sure pvdd is running on port 10101.");
-        QMessageBox::warning(this, "No connection to pvdd",
-                             "Error on getting PvD list from daemon.\n"
-                             "Make sure pvdd is running on port 10101.");
-    } else {
-        for(int i = 0; i < pvd_list->npvd; ++i) {
-            // create tab panels
-            pvdname = strdup(pvd_list->pvdnames[i]);
-            panels.push_back(new PvdStatsPanel(pvdTabW, p_intf, pvdname));
-            pvdTabW->addTab(panels[i], qtr(pvdname));
-            free(pvdname);
-        }
+    if (!pvd_list) {
+        msg_Err(p_intf, "Unable to allocate memory to hold "
+                        "the list of Provisioning Domains.");
     }
-
-    free(pvd_list);
+    else {
+        /* TabWidgets and Tabs creation, tabs named after PvDs */
+        pvdTabW = new QTabWidget;
+        if(pvd_get_pvd_list_sync(conn, pvd_list)) {
+            msg_Warn(p_intf, "Error on getting PvD list from daemon.\n"
+                             "Make sure pvdd is running on port 10101.");
+            QMessageBox::warning(this, "No connection to pvdd",
+                                 "Error on getting PvD list from daemon.\n"
+                                 "Make sure pvdd is running on port 10101.");
+        } else {
+            for(int i = 0; i < pvd_list->npvd; ++i) {
+                // create tab panels
+                pvdname = pvd_list->pvdnames[i];
+                panels.push_back(new PvdStatsPanel(pvdTabW, p_intf, pvdname));
+                pvdTabW->addTab(panels[i], qtr(pvdname));
+                free(pvdname);
+            }
+        }
+        free(pvd_list);
+    }
+    pvd_disconnect(conn);
 
     // get and print the PvD the process is currently bound to
     QLabel *currPvdLabel = new QLabel(qtr("Current Pvd:"));

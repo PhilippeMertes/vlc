@@ -363,6 +363,12 @@ static int vlclua_net_poll( lua_State *L )
 static int vlclua_net_pvd_get_names(lua_State *L) {
     t_pvd_connection *conn = pvd_connect(-1);
     t_pvd_list *pvd_list = malloc(sizeof(t_pvd_list));
+    if (!pvd_list) {
+        lua_pushstring(L, "Unable to allocate memory to store "
+                          "the names of the Provisioning Domains.");
+        pvd_disconnect(conn);
+        return 0;
+    }
 
     // get list of PvD names
     if(pvd_get_pvd_list_sync(conn, pvd_list)) {
